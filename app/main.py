@@ -18,7 +18,7 @@ from supabase import create_client, Client
 # ---------------------------------------------------------------------------
 
 SUPABASE_URL = os.environ["SUPABASE_URL"]
-SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
+SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 
 USE_MOCK_ADS = os.environ.get("USE_MOCK_ADS", "true").lower() == "true"
 ETHICALADS_API_KEY = os.environ.get("ETHICALADS_API_KEY", "")
