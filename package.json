@@ -1,0 +1,54 @@
+{
+  "name": "hoodai",
+  "displayName": "hoodAI",
+  "description": "Shows a sponsored ad (image, text, link) in your editor while you work, and pays you a share of the revenue.",
+  "version": "0.1.0",
+  "publisher": "hoodai",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "hoodai.showAd",
+        "title": "hoodAI: Show Sponsored Panel"
+      },
+      {
+        "command": "hoodai.showEarnings",
+        "title": "hoodAI: Show My Earnings"
+      }
+    ],
+    "configuration": {
+      "title": "hoodAI",
+      "properties": {
+        "hoodai.backendUrl": {
+          "type": "string",
+          "default": "https://hoodai-zscw.onrender.com",
+          "description": "URL of your hoodAI backend"
+        },
+        "hoodai.refreshIntervalSeconds": {
+          "type": "number",
+          "default": 60,
+          "description": "How often to fetch a new ad"
+        },
+        "hoodai.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show sponsored content (disable anytime)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  }
+}
