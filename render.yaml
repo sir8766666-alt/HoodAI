@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: hoodai-backend
+    env: docker
+    plan: free
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: USE_MOCK_ADS
+        value: "true"
+      - key: ETHICALADS_API_KEY
+        sync: false
+      - key: ETHICALADS_PUBLISHER
+        sync: false
+      - key: ETHICALADS_PLACEMENT
+        value: "spinner-text"
+      - key: PAYOUT_THRESHOLD_USD
+        value: "10"
+      - key: USER_REVENUE_SHARE
+        value: "0.5"
+
