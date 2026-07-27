@@ -1,214 +1,235 @@
 """
-Backend for spinner-ad integration (Claude Code / dev tools).
-Connects to EthicalAds for ad supply, logs activity to a single
-Supabase table, and exposes simple stats + payout endpoints.
+HoodAI backend.
+
+Tracks:
+- users
+- impressions
+- clicks
+- estimated earnings from CPM
+- payout eligibility
+
+PlayaYield is the only ad source on the client side.
+This backend is for tracking and dashboard accounting.
 """
 
 import os
-import random
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone
+from typing import Optional
 
-import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from supabase import create_client, Client
 
-# ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
-
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 
-USE_MOCK_ADS = os.environ.get("USE_MOCK_ADS", "true").lower() == "true"
-ETHICALADS_API_KEY = os.environ.get("ETHICALADS_API_KEY", "")
-ETHICALADS_PUBLISHER = os.environ.get("ETHICALADS_PUBLISHER", "")
-ETHICALADS_PLACEMENT = os.environ.get("ETHICALADS_PLACEMENT", "spinner-text")
-
+CPM_USD = float(os.environ.get("CPM_USD", "0.20"))
+USER_SHARE = float(os.environ.get("USER_SHARE", "0.70"))
+HOODAI_SHARE = float(os.environ.get("HOODAI_SHARE", "0.30"))
 PAYOUT_THRESHOLD_USD = float(os.environ.get("PAYOUT_THRESHOLD_USD", "10"))
-USER_REVENUE_SHARE = float(os.environ.get("USER_REVENUE_SHARE", "0.5"))  # 50%
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+app = FastAPI(title="hoodAI backend")
 
-app = FastAPI(title="hoodai-backend")
 
-MOCK_ADS = [
-    {
-        "ad_id": "test-001",
-        "text": "Ship faster with Ramp — corporate cards for startups",
-        "image": "https://via.placeholder.com/130x100?text=Ramp",
-        "link": "https://example.com/sponsor-test",
-    },
-    {
-        "ad_id": "test-002",
-        "text": "Deploy in seconds — try Render free",
-        "image": "https://via.placeholder.com/130x100?text=Render",
-        "link": "https://example.com/sponsor-test-2",
-    },
-]
-
-# ---------------------------------------------------------------------------
-# Models
-# ---------------------------------------------------------------------------
-
-class ImpressionEvent(BaseModel):
+class AdEvent(BaseModel):
     device_id: str
     ad_id: str
+    ad_title: Optional[str] = None
 
 
-class ClickEvent(BaseModel):
+class PayoutRequest(BaseModel):
     device_id: str
-    ad_id: str
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+def now_utc() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def impression_value() -> float:
+    return CPM_USD / 1000.0
+
 
 def get_or_create_user(device_id: str) -> dict:
-    """Single source of truth: one row per device, holds everything."""
-    res = supabase.table("users").select("*").eq("device_id", device_id).execute()
+    res = (
+        supabase.table("users")
+        .select("*")
+        .eq("device_id", device_id)
+        .execute()
+    )
     if res.data:
         return res.data[0]
 
-    new_row = {
+    row = {
         "device_id": device_id,
-        "suggestions": [],          # ad_ids we plan to prioritize for this user
-        "clicked_ad_ids": [],       # history of ad_ids clicked
         "impressions_count": 0,
         "clicks_count": 0,
-        "earnings": 0.0,
+        "estimated_earnings_usd": 0.0,
+        "last_ad_id": None,
+        "last_ad_title": None,
+        "last_seen_at": now_utc(),
         "paid_out": False,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": now_utc(),
+        "updated_at": now_utc(),
     }
-    created = supabase.table("users").insert(new_row).execute()
+    created = supabase.table("users").insert(row).execute()
     return created.data[0]
 
 
-async def fetch_ad(device_id: str) -> dict:
-    if USE_MOCK_ADS:
-        return random.choice(MOCK_ADS)
-
-    async with httpx.AsyncClient(timeout=5) as client:
-        resp = await client.get(
-            "https://server.ethicalads.io/api/v1/decision/",
-            params={"placement": ETHICALADS_PLACEMENT, "format": "text"},
-            headers={"Authorization": f"Token {ETHICALADS_API_KEY}"},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-
-    # normalize EthicalAds' response into our internal shape
-    return {
-        "ad_id": data.get("nonce", "unknown"),
-        "text": data.get("text", ""),
-        "image": data.get("image", ""),
-        "link": data.get("link", ""),
-    }
-
-
-# ---------------------------------------------------------------------------
-# Ad serving
-# ---------------------------------------------------------------------------
-
-@app.get("/ad/next")
-async def get_next_ad(device_id: str):
-    user = get_or_create_user(device_id)
-    ad = await fetch_ad(device_id)
-
-    # simple "suggestions" update: keep last 5 ad_ids we've shown this user
-    suggestions = user.get("suggestions", []) or []
-    suggestions = ([ad["ad_id"]] + suggestions)[:5]
-    supabase.table("users").update({"suggestions": suggestions}).eq(
-        "device_id", device_id
-    ).execute()
-
-    return ad
-
-
-@app.post("/ad/impression")
-def log_impression(event: ImpressionEvent):
-    user = get_or_create_user(event.device_id)
-    supabase.table("users").update(
-        {"impressions_count": user["impressions_count"] + 1}
-    ).eq("device_id", event.device_id).execute()
-    return {"ok": True}
-
-
-@app.post("/ad/click")
-def log_click(event: ClickEvent):
-    user = get_or_create_user(event.device_id)
-    clicked = user.get("clicked_ad_ids", []) or []
-    clicked.append({"ad_id": event.ad_id, "at": datetime.now(timezone.utc).isoformat()})
-
-    supabase.table("users").update(
-        {
-            "clicks_count": user["clicks_count"] + 1,
-            "clicked_ad_ids": clicked,
-        }
-    ).eq("device_id", event.device_id).execute()
-    return {"ok": True}
-
-
-# ---------------------------------------------------------------------------
-# Stats — shaped for a chart (AdMob-style: today + monthly series)
-# ---------------------------------------------------------------------------
-
-@app.get("/stats/{device_id}")
-def get_user_stats(device_id: str):
-    user = get_or_create_user(device_id)
-
-    return {
-        "impressions_total": user["impressions_count"],
-        "clicks_total": user["clicks_count"],
-        "earnings_total": user["earnings"],
-        "payout_threshold": PAYOUT_THRESHOLD_USD,
-        "eligible_for_payout": user["earnings"] >= PAYOUT_THRESHOLD_USD
-        and not user["paid_out"],
-        # today / monthly breakdowns require a proper events table for real
-        # per-day granularity — see NOTE in README. Placeholder shape below
-        # so a chart component can be wired up immediately.
-        "today": {"impressions": None, "clicks": None, "earnings": None},
-        "monthly": {"impressions": None, "clicks": None, "earnings": None},
-    }
-
-
-# ---------------------------------------------------------------------------
-# Payout — apply revenue from network's monthly report, then check threshold
-# ---------------------------------------------------------------------------
-
-class RevenueUpdate(BaseModel):
-    device_id: str
-    amount_usd: float  # this user's computed share for the period
-
-
-@app.post("/payout/apply-revenue")
-def apply_revenue(update: RevenueUpdate):
-    user = get_or_create_user(update.device_id)
-    new_earnings = user["earnings"] + update.amount_usd
-    supabase.table("users").update({"earnings": new_earnings}).eq(
-        "device_id", update.device_id
-    ).execute()
-
-    return {
-        "earnings": new_earnings,
-        "eligible_for_payout": new_earnings >= PAYOUT_THRESHOLD_USD,
-    }
-
-
-@app.post("/payout/mark-paid")
-def mark_paid(device_id: str):
-    user = get_or_create_user(device_id)
-    if user["earnings"] < PAYOUT_THRESHOLD_USD:
-        raise HTTPException(400, "User has not reached payout threshold")
-
-    supabase.table("users").update({"earnings": 0.0, "paid_out": True}).eq(
-        "device_id", device_id
-    ).execute()
-    return {"ok": True}
+def update_user(device_id: str, patch: dict) -> None:
+    patch["updated_at"] = now_utc()
+    supabase.table("users").update(patch).eq("device_id", device_id).execute()
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "mock_mode": USE_MOCK_ADS}
-  
+    return {"status": "ok", "cpm_usd": CPM_USD}
+
+
+@app.get("/ad/next")
+def ad_next(device_id: str):
+    """
+    This endpoint is where your extension asks for the next ad payload.
+
+    If PlayaYield returns ads directly in the client SDK, you may not need this.
+    But keeping this endpoint is useful for tracking and future control.
+    """
+    user = get_or_create_user(device_id)
+    return {
+        "ok": True,
+        "device_id": device_id,
+        "cpm_usd": CPM_USD,
+        "user_share": USER_SHARE,
+        "hoodai_share": HOODAI_SHARE,
+        "payout_threshold_usd": PAYOUT_THRESHOLD_USD,
+        "user": {
+            "impressions_count": user["impressions_count"],
+            "clicks_count": user["clicks_count"],
+            "estimated_earnings_usd": float(user["estimated_earnings_usd"]),
+        },
+    }
+
+
+@app.post("/ad/impression")
+def ad_impression(event: AdEvent):
+    user = get_or_create_user(event.device_id)
+    value = impression_value()
+
+    new_impressions = int(user["impressions_count"]) + 1
+    new_earnings = float(user["estimated_earnings_usd"]) + value
+
+    supabase.table("ad_events").insert(
+        {
+            "device_id": event.device_id,
+            "ad_id": event.ad_id,
+            "ad_title": event.ad_title,
+            "event_type": "impression",
+            "cpm_usd": CPM_USD,
+            "estimated_value_usd": value,
+            "created_at": now_utc(),
+        }
+    ).execute()
+
+    update_user(
+        event.device_id,
+        {
+            "impressions_count": new_impressions,
+            "estimated_earnings_usd": new_earnings,
+            "last_ad_id": event.ad_id,
+            "last_ad_title": event.ad_title,
+            "last_seen_at": now_utc(),
+        },
+    )
+
+    return {
+        "ok": True,
+        "impressions_count": new_impressions,
+        "estimated_earnings_usd": round(new_earnings, 6),
+    }
+
+
+@app.post("/ad/click")
+def ad_click(event: AdEvent):
+    user = get_or_create_user(event.device_id)
+    new_clicks = int(user["clicks_count"]) + 1
+
+    supabase.table("ad_events").insert(
+        {
+            "device_id": event.device_id,
+            "ad_id": event.ad_id,
+            "ad_title": event.ad_title,
+            "event_type": "click",
+            "cpm_usd": CPM_USD,
+            "estimated_value_usd": 0,
+            "created_at": now_utc(),
+        }
+    ).execute()
+
+    update_user(
+        event.device_id,
+        {
+            "clicks_count": new_clicks,
+            "last_ad_id": event.ad_id,
+            "last_ad_title": event.ad_title,
+            "last_seen_at": now_utc(),
+        },
+    )
+
+    return {
+        "ok": True,
+        "clicks_count": new_clicks,
+    }
+
+
+@app.get("/stats/{device_id}")
+def stats(device_id: str):
+    user = get_or_create_user(device_id)
+    estimated = float(user["estimated_earnings_usd"])
+
+    return {
+        "device_id": device_id,
+        "impressions_total": int(user["impressions_count"]),
+        "clicks_total": int(user["clicks_count"]),
+        "estimated_earnings_usd": round(estimated, 6),
+        "payout_threshold_usd": PAYOUT_THRESHOLD_USD,
+        "eligible_for_payout": estimated >= PAYOUT_THRESHOLD_USD and not bool(user["paid_out"]),
+        "last_ad_id": user.get("last_ad_id"),
+        "last_ad_title": user.get("last_ad_title"),
+    }
+
+
+@app.get("/dashboard")
+def dashboard():
+    rows = supabase.table("users").select("*").order("estimated_earnings_usd", desc=True).execute()
+    users = rows.data or []
+
+    totals = {
+        "users": len(users),
+        "impressions_total": sum(int(u.get("impressions_count", 0)) for u in users),
+        "clicks_total": sum(int(u.get("clicks_count", 0)) for u in users),
+        "estimated_earnings_usd": round(sum(float(u.get("estimated_earnings_usd", 0)) for u in users), 6),
+    }
+
+    return {
+        "totals": totals,
+        "users": users,
+    }
+
+
+@app.post("/payout/mark-paid")
+def mark_paid(req: PayoutRequest):
+    user = get_or_create_user(req.device_id)
+    estimated = float(user["estimated_earnings_usd"])
+
+    if estimated < PAYOUT_THRESHOLD_USD:
+        raise HTTPException(status_code=400, detail="User has not reached payout threshold")
+
+    update_user(
+        req.device_id,
+        {
+            "estimated_earnings_usd": 0.0,
+            "paid_out": True,
+        },
+    )
+
+    return {"ok": True}
