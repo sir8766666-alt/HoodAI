@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "HoodAI",
+  "description": "Earn passive income while coding with privacy-friendly sponsored content.",
+  "version": "0.1.0",
+
+  "permissions": [
+    "storage"
+  ],
+
+  "host_permissions": [
+    "https://hoodai-zscw.onrender.com/*"
+  ],
+
+  "background": {
+    "service_worker": "out/background.js",
+    "type": "module"
+  },
+
+  "action": {
+    "default_title": "HoodAI",
+    "default_popup": "popup.html"
+  },
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
