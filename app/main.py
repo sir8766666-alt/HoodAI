@@ -618,3 +618,8 @@ def payout_mark_paid(
         "amount_usd": round(amount, 6),
         "new_balance_usd": round(new_balance, 6),
 }
+
+
+@app.get("/health")
+def start_up():
+    return {"status":"i'm ok 💪"}
