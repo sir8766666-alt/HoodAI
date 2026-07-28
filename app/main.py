@@ -74,7 +74,9 @@ class AdEventIn(BaseModel):
 class PayoutRequestIn(BaseModel):
     pass
 
-
+class MarkPaidIn(BaseModel):
+    user_id: str = Field(..., min_length=3)
+    payout_id: str = Field(..., min_length=1)
 # -----------------------------------------------------------------------------
 # Token helpers
 # -----------------------------------------------------------------------------
