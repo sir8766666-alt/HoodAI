@@ -1,24 +1,33 @@
 """
-HoodAI backend.
+HoodAI backend — Part 1
 
-What it does:
-- Tracks users by user_id
-- Stores payout_account in JSONB (PayPal email for now)
-- Stores payout_status in JSONB with history
-- Logs every impression/click into ad_events
-- Calculates estimated earnings from CPM and optional CPC
-- Enables payout only when balance reaches threshold
+Foundation:
+- FastAPI app
+- Supabase connection
+- API token generation + verification helpers
+- User bootstrap helpers
+
+Next part will add the actual routes:
+- /auth/signup
+- /auth/verify
+- /account/payout-account
+- /ad/impression
+- /ad/click
+- /stats/me
+- /payout/request
+- /payout/mark-paid
 """
 
 import os
-from copy import deepcopy
+import secrets
+import hashlib
 from datetime import datetime, timezone
 from typing import Optional, Literal
-from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel, Field
 from supabase import create_client, Client
+
 
 # -----------------------------------------------------------------------------
 # Config
@@ -29,75 +38,82 @@ SUPABASE_SERVICE_ROLE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 
 AD_PROVIDER = os.environ.get("AD_PROVIDER", "playayield")
 
-# Estimated revenue model (for dashboard + user balances)
-CPM_USD = float(os.environ.get("CPM_USD", "0.20"))   # per 1000 impressions
-CPC_USD = float(os.environ.get("CPC_USD", "0.00"))   # per click, if applicable
+CPM_USD = float(os.environ.get("CPM_USD", "0.20"))
+CPC_USD = float(os.environ.get("CPC_USD", "0.00"))
 
-# Split between HoodAI and users
-USER_SHARE = float(os.environ.get("USER_SHARE", "0.70"))    # 70%
-HOODAI_SHARE = float(os.environ.get("HOODAI_SHARE", "0.30"))  # 30%
+USER_SHARE = float(os.environ.get("USER_SHARE", "0.70"))
+HOODAI_SHARE = float(os.environ.get("HOODAI_SHARE", "0.30"))
 
 PAYOUT_THRESHOLD_USD = float(os.environ.get("PAYOUT_THRESHOLD_USD", "20"))
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 app = FastAPI(title="hoodAI-backend")
 
+
 # -----------------------------------------------------------------------------
 # Models
 # -----------------------------------------------------------------------------
 
-class UserUpsert(BaseModel):
-    user_id: str = Field(..., min_length=3)
-    email: Optional[str] = None
+class SignupIn(BaseModel):
+    email: str
     name: Optional[str] = None
 
 
+class PayoutAccountIn(BaseModel):
+    method: Literal["paypal"] = "paypal"
+    paypal_email: str = Field(..., min_length=5)
+
+
 class AdEventIn(BaseModel):
-    user_id: str = Field(..., min_length=3)
     ad_id: str = Field(..., min_length=1)
     ad_title: Optional[str] = None
     provider: str = Field(default=AD_PROVIDER)
     impression_id: Optional[str] = None
 
 
-class PayoutAccountIn(BaseModel):
-    user_id: str = Field(..., min_length=3)
-    method: Literal["paypal"] = "paypal"
-    paypal_email: str = Field(..., min_length=5)
-
-
 class PayoutRequestIn(BaseModel):
-    user_id: str = Field(..., min_length=3)
-
-
-class MarkPaidIn(BaseModel):
-    user_id: str = Field(..., min_length=3)
-    payout_id: str
+    pass
 
 
 # -----------------------------------------------------------------------------
-# Helpers
+# Token helpers
 # -----------------------------------------------------------------------------
 
 def now_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def impression_value_usd() -> float:
-    return (CPM_USD / 1000.0) * USER_SHARE
+def generate_user_id() -> str:
+    return f"usr_{secrets.token_urlsafe(10)}"
 
 
-def click_value_usd() -> float:
-    return CPC_USD * USER_SHARE
+def generate_api_token() -> str:
+    return f"hood_{secrets.token_urlsafe(32)}"
 
 
-def normalize_jsonb(value, default):
-    if isinstance(value, (dict, list)):
-        return value
-    return deepcopy(default)
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def get_or_create_user(user_id: str, email: Optional[str] = None, name: Optional[str] = None) -> dict:
+def token_last4(token: str) -> str:
+    return token[-4:]
+
+
+def normalize_bearer_token(authorization: Optional[str]) -> Optional[str]:
+    if not authorization:
+        return None
+    prefix = "Bearer "
+    if not authorization.startswith(prefix):
+        return None
+    token = authorization[len(prefix):].strip()
+    return token or None
+
+
+# -----------------------------------------------------------------------------
+# User helpers
+# -----------------------------------------------------------------------------
+
+def get_user_by_id(user_id: str) -> Optional[dict]:
     res = (
         supabase.table("users")
         .select("*")
@@ -105,339 +121,516 @@ def get_or_create_user(user_id: str, email: Optional[str] = None, name: Optional
         .limit(1)
         .execute()
     )
+    return res.data[0] if res.data else None
 
-    if res.data:
-        user = res.data[0]
-        patch = {}
-        if email is not None and user.get("email") != email:
-            patch["email"] = email
-        if name is not None and user.get("name") != name:
-            patch["name"] = name
-        if patch:
-            patch["updated_at"] = now_utc()
-            supabase.table("users").update(patch).eq("user_id", user_id).execute()
-            user.update(patch)
-        return user
+
+def get_user_by_token(token: str) -> Optional[dict]:
+    token_hash = hash_token(token)
+    res = (
+        supabase.table("users")
+        .select("*")
+        .eq("api_token_hash", token_hash)
+        .limit(1)
+        .execute()
+    )
+    return res.data[0] if res.data else None
+
+
+def create_user_row(email: str, name: Optional[str] = None) -> tuple[dict, str]:
+    user_id = generate_user_id()
+    api_token = generate_api_token()
 
     row = {
         "user_id": user_id,
         "email": email,
         "name": name,
+        "api_token_hash": hash_token(api_token),
+        "api_token_last4": token_last4(api_token),
         "impressions_count": 0,
         "clicks_count": 0,
         "earnings_usd": 0.0,
         "total_paid_usd": 0.0,
-        "payout_account": None,
+        "payout_account": {},
         "payout_status": {
             "current": "none",
             "history": [],
         },
-        "last_ad_id": None,
-        "last_ad_title": None,
-        "last_seen_at": now_utc(),
         "created_at": now_utc(),
         "updated_at": now_utc(),
     }
+
     created = supabase.table("users").insert(row).execute()
-    return created.data[0]
+    return created.data[0], api_token
 
 
-def save_user(user_id: str, patch: dict) -> None:
-    patch["updated_at"] = now_utc()
-    supabase.table("users").update(patch).eq("user_id", user_id).execute()
+def require_user_from_token(authorization: Optional[str]) -> dict:
+    token = normalize_bearer_token(authorization)
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing Bearer token")
+
+    user = get_user_by_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    return user
+
+# -----------------------------------------------------------------------------
+# Authentication
+# -----------------------------------------------------------------------------
+
+@app.post("/auth/signup")
+def signup(payload: SignupIn):
+    """
+    Creates a new HoodAI user.
+
+    Returns:
+    - user_id
+    - api_token (ONLY ONCE)
+    """
+
+    existing = (
+        supabase.table("users")
+        .select("user_id")
+        .eq("email", payload.email)
+        .limit(1)
+        .execute()
+    )
+
+    if existing.data:
+        raise HTTPException(
+            status_code=409,
+            detail="An account with this email already exists."
+        )
+
+    user, api_token = create_user_row(
+        email=payload.email,
+        name=payload.name
+    )
+
+    return {
+        "success": True,
+        "message": "Account created successfully.",
+        "user_id": user["user_id"],
+        "api_token": api_token,
+        "warning": "Save this API token now. It will not be shown again."
+    }
 
 
-def append_event(
+@app.get("/auth/me")
+def auth_me(
+    authorization: str = Header(...)
+):
+    """
+    Used by the dashboard or extension
+    to verify the API token.
+    """
+
+    user = require_user_from_token(authorization)
+
+    return {
+        "success": True,
+        "user": {
+            "user_id": user["user_id"],
+            "email": user["email"],
+            "name": user["name"],
+            "earnings_usd": user["earnings_usd"],
+            "impressions_count": user["impressions_count"],
+            "clicks_count": user["clicks_count"],
+            "created_at": user["created_at"]
+        }
+    }
+
+
+@app.post("/auth/verify")
+def verify_token(
+    authorization: str = Header(...)
+):
+    """
+    Lightweight endpoint used by
+    VS Code / Chrome Extension.
+
+    Returns 401 if token is invalid.
+    """
+
+    user = require_user_from_token(authorization)
+
+    return {
+        "success": True,
+        "user_id": user["user_id"],
+        "email": user["email"]
+    }
+
+# -----------------------------------------------------------------------------
+# Earnings helpers
+# -----------------------------------------------------------------------------
+
+def impression_estimate() -> float:
+    return (CPM_USD / 1000.0) * USER_SHARE
+
+
+def click_estimate() -> float:
+    return CPC_USD * USER_SHARE
+
+
+def save_event(
     *,
     user_id: str,
     ad_id: str,
-    event_type: Literal["impression", "click"],
-    ad_title: Optional[str] = None,
-    provider: str = AD_PROVIDER,
-    impression_id: Optional[str] = None,
-    revenue_usd: float = 0.0,
-) -> None:
-    supabase.table("ad_events").insert(
-        {
-            "user_id": user_id,
-            "ad_id": ad_id,
-            "ad_title": ad_title,
-            "provider": provider,
-            "event_type": event_type,
-            "impression_id": impression_id,
-            "cpm_usd": CPM_USD,
-            "cpc_usd": CPC_USD,
-            "user_share_usd": USER_SHARE,
-            "hoodai_share_usd": HOODAI_SHARE,
-            "estimated_value_usd": revenue_usd,
-            "created_at": now_utc(),
-        }
-    ).execute()
-
-
-def current_payout_state(user: dict) -> dict:
-    return normalize_jsonb(user.get("payout_status"), {"current": "none", "history": []})
-
-
-# -----------------------------------------------------------------------------
-# Routes
-# -----------------------------------------------------------------------------
-
-@app.get("/health")
-def health():
-    return {
-        "status": "ok",
-        "provider": AD_PROVIDER,
+    ad_title: str | None,
+    provider: str,
+    event_type: str,
+    impression_id: str | None,
+    estimated_value: float,
+):
+    supabase.table("ad_events").insert({
+        "user_id": user_id,
+        "provider": provider,
+        "ad_id": ad_id,
+        "ad_title": ad_title,
+        "event_type": event_type,
+        "impression_id": impression_id,
+        "estimated_value_usd": estimated_value,
         "cpm_usd": CPM_USD,
         "cpc_usd": CPC_USD,
-        "payout_threshold_usd": PAYOUT_THRESHOLD_USD,
-    }
+        "user_share": USER_SHARE,
+        "hoodai_share": HOODAI_SHARE,
+        "created_at": now_utc()
+    }).execute()
 
 
-@app.post("/users/upsert")
-def users_upsert(payload: UserUpsert):
-    user = get_or_create_user(payload.user_id, payload.email, payload.name)
-    return {
-        "ok": True,
-        "user": user,
-    }
+def update_user_totals(user: dict, *, impression=False, click=False, earnings_delta=0):
+    patch = {}
 
+    if impression:
+        patch["impressions_count"] = user["impressions_count"] + 1
 
-@app.get("/users/{user_id}")
-def get_user(user_id: str):
-    user = get_or_create_user(user_id)
-    return {
-        "user_id": user["user_id"],
-        "email": user.get("email"),
-        "name": user.get("name"),
-        "impressions_count": int(user.get("impressions_count", 0)),
-        "clicks_count": int(user.get("clicks_count", 0)),
-        "earnings_usd": float(user.get("earnings_usd", 0.0)),
-        "total_paid_usd": float(user.get("total_paid_usd", 0.0)),
-        "payout_account": user.get("payout_account"),
-        "payout_status": user.get("payout_status"),
-    }
+    if click:
+        patch["clicks_count"] = user["clicks_count"] + 1
 
+    patch["earnings_usd"] = round(
+        float(user["earnings_usd"]) + earnings_delta,
+        6
+    )
 
-@app.post("/account/payout-account")
-def set_payout_account(payload: PayoutAccountIn):
-    user = get_or_create_user(payload.user_id)
+    patch["updated_at"] = now_utc()
 
-    payout_account = {
-        "method": "paypal",
-        "paypal_email": payload.paypal_email.strip().lower(),
-        "updated_at": now_utc(),
-    }
+    supabase.table("users") \
+        .update(patch) \
+        .eq("user_id", user["user_id"]) \
+        .execute()
 
-    save_user(payload.user_id, {"payout_account": payout_account})
-    return {
-        "ok": True,
-        "payout_account": payout_account,
-    }
-
+    return patch
 
 @app.post("/ad/impression")
-def ad_impression(payload: AdEventIn):
-    user = get_or_create_user(payload.user_id)
+def ad_impression(
+    payload: AdEventIn,
+    authorization: str = Header(...)
+):
+    user = require_user_from_token(authorization)
 
-    value = impression_value_usd()
-    new_impressions = int(user.get("impressions_count", 0)) + 1
-    new_earnings = float(user.get("earnings_usd", 0.0)) + value
+    value = impression_estimate()
 
-    append_event(
-        user_id=payload.user_id,
+    save_event(
+        user_id=user["user_id"],
         ad_id=payload.ad_id,
         ad_title=payload.ad_title,
         provider=payload.provider,
         event_type="impression",
         impression_id=payload.impression_id,
-        revenue_usd=value,
+        estimated_value=value,
     )
 
-    save_user(
-        payload.user_id,
-        {
-            "impressions_count": new_impressions,
-            "earnings_usd": new_earnings,
-            "last_ad_id": payload.ad_id,
-            "last_ad_title": payload.ad_title,
-            "last_seen_at": now_utc(),
-        },
+    totals = update_user_totals(
+        user,
+        impression=True,
+        earnings_delta=value
     )
 
     return {
-        "ok": True,
-        "event_type": "impression",
-        "credited_usd": round(value, 6),
-        "impressions_count": new_impressions,
-        "earnings_usd": round(new_earnings, 6),
+        "success": True,
+        "credited_estimate": value,
+        "impressions": totals["impressions_count"],
+        "balance": totals["earnings_usd"]
     }
 
 
 @app.post("/ad/click")
-def ad_click(payload: AdEventIn):
-    user = get_or_create_user(payload.user_id)
+def ad_click(
+    payload: AdEventIn,
+    authorization: str = Header(...)
+):
+    user = require_user_from_token(authorization)
 
-    value = click_value_usd()
-    new_clicks = int(user.get("clicks_count", 0)) + 1
-    new_earnings = float(user.get("earnings_usd", 0.0)) + value
+    value = click_estimate()
 
-    append_event(
-        user_id=payload.user_id,
+    save_event(
+        user_id=user["user_id"],
         ad_id=payload.ad_id,
         ad_title=payload.ad_title,
         provider=payload.provider,
         event_type="click",
         impression_id=payload.impression_id,
-        revenue_usd=value,
+        estimated_value=value,
     )
 
-    save_user(
-        payload.user_id,
-        {
-            "clicks_count": new_clicks,
-            "earnings_usd": new_earnings,
-            "last_ad_id": payload.ad_id,
-            "last_ad_title": payload.ad_title,
-            "last_seen_at": now_utc(),
-        },
+    totals = update_user_totals(
+        user,
+        click=True,
+        earnings_delta=value
     )
 
     return {
-        "ok": True,
-        "event_type": "click",
-        "credited_usd": round(value, 6),
-        "clicks_count": new_clicks,
-        "earnings_usd": round(new_earnings, 6),
+        "success": True,
+        "credited_estimate": value,
+        "clicks": totals["clicks_count"],
+        "balance": totals["earnings_usd"]
+    }
+
+@app.get("/stats/me")
+def stats_me(
+    authorization: str = Header(...)
+):
+    user = require_user_from_token(authorization)
+
+    return {
+        "user_id": user["user_id"],
+        "earnings_usd": user["earnings_usd"],
+        "total_paid_usd": user["total_paid_usd"],
+        "impressions": user["impressions_count"],
+        "clicks": user["clicks_count"],
+        "withdraw_enabled": (
+            float(user["earnings_usd"]) >= PAYOUT_THRESHOLD_USD
+        ),
+        "threshold": PAYOUT_THRESHOLD_USD
+    }
+
+# -----------------------------------------------------------------------------
+# Validation helpers
+# -----------------------------------------------------------------------------
+
+def ad_event_exists(user_id: str, event_type: str, impression_id: Optional[str], ad_id: str) -> bool:
+    query = (
+        supabase.table("ad_events")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("event_type", event_type)
+        .eq("ad_id", ad_id)
+    )
+
+    if impression_id:
+        query = query.eq("impression_id", impression_id)
+
+    res = query.limit(1).execute()
+    return bool(res.data)
+
+
+def payout_state(user: dict) -> dict:
+    raw = user.get("payout_status")
+    if isinstance(raw, dict):
+        return raw
+    return {"current": "none", "history": []}
+
+
+def payout_account(user: dict) -> dict:
+    raw = user.get("payout_account")
+    if isinstance(raw, dict):
+        return raw
+    return {}
+
+
+def has_valid_paypal_account(user: dict) -> bool:
+    acc = payout_account(user)
+    return (
+        acc.get("method") == "paypal"
+        and isinstance(acc.get("paypal_email"), str)
+        and len(acc["paypal_email"].strip()) > 4
+    )
+
+
+def can_withdraw(user: dict) -> bool:
+    return (
+        float(user.get("earnings_usd", 0.0)) >= PAYOUT_THRESHOLD_USD
+        and has_valid_paypal_account(user)
+        and payout_state(user).get("current") != "pending"
+    )
+
+
+def append_payout_history(user: dict, entry: dict) -> list:
+    state = payout_state(user)
+    history = list(state.get("history", []))
+    history.append(entry)
+    return history
+
+
+# -----------------------------------------------------------------------------
+# Payout account
+# -----------------------------------------------------------------------------
+
+@app.post("/account/payout-account")
+def set_payout_account(
+    payload: PayoutAccountIn,
+    authorization: str = Header(...)
+):
+    user = require_user_from_token(authorization)
+
+    payout_account_value = {
+        "method": "paypal",
+        "paypal_email": payload.paypal_email.strip().lower(),
+        "updated_at": now_utc(),
+    }
+
+    supabase.table("users").update({
+        "payout_account": payout_account_value,
+        "updated_at": now_utc(),
+    }).eq("user_id", user["user_id"]).execute()
+
+    return {
+        "success": True,
+        "payout_account": payout_account_value,
     }
 
 
-@app.get("/stats/{user_id}")
-def stats(user_id: str):
-    user = get_or_create_user(user_id)
-    payout_status = current_payout_state(user)
-    earnings = float(user.get("earnings_usd", 0.0))
+# -----------------------------------------------------------------------------
+# Validated ad events
+# -----------------------------------------------------------------------------
+
+@app.post("/ad/impression")
+def ad_impression(
+    payload: AdEventIn,
+    authorization: str = Header(...)
+):
+    user = require_user_from_token(authorization)
+
+    if payload.impression_id and ad_event_exists(
+        user_id=user["user_id"],
+        event_type="impression",
+        impression_id=payload.impression_id,
+        ad_id=payload.ad_id,
+    ):
+        raise HTTPException(status_code=409, detail="Duplicate impression event")
+
+    credited = impression_estimate()
+
+    supabase.table("ad_events").insert({
+        "user_id": user["user_id"],
+        "provider": payload.provider,
+        "ad_id": payload.ad_id,
+        "ad_title": payload.ad_title,
+        "event_type": "impression",
+        "impression_id": payload.impression_id,
+        "cpm_usd": CPM_USD,
+        "cpc_usd": CPC_USD,
+        "user_share": USER_SHARE,
+        "hoodai_share": HOODAI_SHARE,
+        "estimated_value_usd": credited,
+        "created_at": now_utc(),
+    }).execute()
+
+    new_impressions = int(user.get("impressions_count", 0)) + 1
+    new_earnings = float(user.get("earnings_usd", 0.0)) + credited
+
+    supabase.table("users").update({
+        "impressions_count": new_impressions,
+        "earnings_usd": round(new_earnings, 6),
+        "last_ad_id": payload.ad_id,
+        "last_ad_title": payload.ad_title,
+        "last_seen_at": now_utc(),
+        "updated_at": now_utc(),
+    }).eq("user_id", user["user_id"]).execute()
 
     return {
-        "user_id": user_id,
-        "impressions_total": int(user.get("impressions_count", 0)),
-        "clicks_total": int(user.get("clicks_count", 0)),
-        "earnings_usd": round(earnings, 6),
-        "total_paid_usd": float(user.get("total_paid_usd", 0.0)),
-        "payout_threshold_usd": PAYOUT_THRESHOLD_USD,
-        "eligible_for_payout": earnings >= PAYOUT_THRESHOLD_USD and payout_status.get("current") != "pending",
+        "success": True,
+        "credited_estimate": round(credited, 6),
+        "impressions": new_impressions,
+        "balance": round(new_earnings, 6),
+    }
+
+
+@app.post("/ad/click")
+def ad_click(
+    payload: AdEventIn,
+    authorization: str = Header(...)
+):
+    user = require_user_from_token(authorization)
+
+    if payload.impression_id and ad_event_exists(
+        user_id=user["user_id"],
+        event_type="click",
+        impression_id=payload.impression_id,
+        ad_id=payload.ad_id,
+    ):
+        raise HTTPException(status_code=409, detail="Duplicate click event")
+
+    credited = click_estimate()
+
+    supabase.table("ad_events").insert({
+        "user_id": user["user_id"],
+        "provider": payload.provider,
+        "ad_id": payload.ad_id,
+        "ad_title": payload.ad_title,
+        "event_type": "click",
+        "impression_id": payload.impression_id,
+        "cpm_usd": CPM_USD,
+        "cpc_usd": CPC_USD,
+        "user_share": USER_SHARE,
+        "hoodai_share": HOODAI_SHARE,
+        "estimated_value_usd": credited,
+        "created_at": now_utc(),
+    }).execute()
+
+    new_clicks = int(user.get("clicks_count", 0)) + 1
+    new_earnings = float(user.get("earnings_usd", 0.0)) + credited
+
+    supabase.table("users").update({
+        "clicks_count": new_clicks,
+        "earnings_usd": round(new_earnings, 6),
+        "last_ad_id": payload.ad_id,
+        "last_ad_title": payload.ad_title,
+        "last_seen_at": now_utc(),
+        "updated_at": now_utc(),
+    }).eq("user_id", user["user_id"]).execute()
+
+    return {
+        "success": True,
+        "credited_estimate": round(credited, 6),
+        "clicks": new_clicks,
+        "balance": round(new_earnings, 6),
+    }
+
+
+# -----------------------------------------------------------------------------
+# Dashboard / stats
+# -----------------------------------------------------------------------------
+
+@app.get("/stats/me")
+def stats_me(
+    authorization: str = Header(...)
+):
+    user = require_user_from_token(authorization)
+    state = payout_state(user)
+    balance = float(user.get("earnings_usd", 0.0))
+
+    return {
+        "success": True,
+        "user_id": user["user_id"],
+        "email": user.get("email"),
+        "name": user.get("name"),
+        "impressions": int(user.get("impressions_count", 0)),
+        "clicks": int(user.get("clicks_count", 0)),
+        "earnings_usd": round(balance, 6),
+        "total_paid_usd": round(float(user.get("total_paid_usd", 0.0)), 6),
+        "threshold_usd": PAYOUT_THRESHOLD_USD,
+        "withdraw_enabled": can_withdraw(user),
         "payout_account": user.get("payout_account"),
-        "payout_status": payout_status,
+        "payout_status": state,
         "last_ad_id": user.get("last_ad_id"),
         "last_ad_title": user.get("last_ad_title"),
     }
 
 
-@app.post("/payout/request")
-def payout_request(payload: PayoutRequestIn):
-    user = get_or_create_user(payload.user_id)
-    balance = float(user.get("earnings_usd", 0.0))
-    payout_account = normalize_jsonb(user.get("payout_account"), None)
-    payout_status = current_payout_state(user)
-
-    if balance < PAYOUT_THRESHOLD_USD:
-        raise HTTPException(status_code=400, detail="Balance is below payout threshold")
-    if not payout_account or payout_account.get("method") != "paypal" or not payout_account.get("paypal_email"):
-        raise HTTPException(status_code=400, detail="PayPal payout account is missing")
-    if payout_status.get("current") == "pending":
-        raise HTTPException(status_code=400, detail="There is already a pending payout request")
-
-    payout_id = f"p_{uuid4().hex}"
-    request_entry = {
-        "id": payout_id,
-        "amount_usd": round(balance, 6),
-        "method": "paypal",
-        "status": "pending",
-        "requested_at": now_utc(),
-        "paypal_email": payout_account["paypal_email"],
-    }
-
-    history = list(payout_status.get("history", []))
-    history.append(request_entry)
-
-    save_user(
-        payload.user_id,
-        {
-            "payout_status": {
-                "current": "pending",
-                "history": history,
-            }
-        },
-    )
-
-    return {
-        "ok": True,
-        "payout_id": payout_id,
-        "status": "pending",
-        "amount_usd": round(balance, 6),
-    }
-
-
-@app.post("/payout/mark-paid")
-def payout_mark_paid(payload: MarkPaidIn):
-    user = get_or_create_user(payload.user_id)
-    payout_status = current_payout_state(user)
-    history = list(payout_status.get("history", []))
-
-    match = None
-    for item in reversed(history):
-        if item.get("id") == payload.payout_id:
-            match = item
-            break
-
-    if not match:
-        raise HTTPException(status_code=404, detail="Payout request not found")
-    if match.get("status") == "paid":
-        return {"ok": True, "already_paid": True}
-
-    amount = float(match.get("amount_usd", 0.0))
-    earnings = float(user.get("earnings_usd", 0.0))
-    if earnings < amount:
-        raise HTTPException(status_code=400, detail="Not enough balance to mark paid")
-
-    match["status"] = "paid"
-    match["paid_at"] = now_utc()
-
-    # update last matching element in history
-    for idx in range(len(history) - 1, -1, -1):
-        if history[idx].get("id") == payload.payout_id:
-            history[idx] = match
-            break
-
-    new_paid_total = float(user.get("total_paid_usd", 0.0)) + amount
-    save_user(
-        payload.user_id,
-        {
-            "earnings_usd": round(earnings - amount, 6),
-            "total_paid_usd": round(new_paid_total, 6),
-            "payout_status": {
-                "current": "paid",
-                "history": history,
-            },
-        },
-    )
-
-    return {
-        "ok": True,
-        "payout_id": payload.payout_id,
-        "status": "paid",
-        "amount_usd": round(amount, 6),
-    }
-
-
 @app.get("/dashboard")
 def dashboard():
-    rows = (
-        supabase.table("users")
-        .select("*")
-        .order("earnings_usd", desc=True)
-        .execute()
-    )
+    rows = supabase.table("users").select("*").order("earnings_usd", desc=True).execute()
     users = rows.data or []
 
     return {
@@ -450,3 +643,108 @@ def dashboard():
         },
         "users": users,
     }
+
+
+# -----------------------------------------------------------------------------
+# Payout flow
+# -----------------------------------------------------------------------------
+
+@app.post("/payout/request")
+def payout_request(
+    payload: PayoutRequestIn,
+    authorization: str = Header(...)
+):
+    user = require_user_from_token(authorization)
+    balance = float(user.get("earnings_usd", 0.0))
+    state = payout_state(user)
+
+    if balance < PAYOUT_THRESHOLD_USD:
+        raise HTTPException(status_code=400, detail="Balance is below the $20 threshold")
+    if not has_valid_paypal_account(user):
+        raise HTTPException(status_code=400, detail="PayPal payout account is missing")
+    if state.get("current") == "pending":
+        raise HTTPException(status_code=400, detail="A payout is already pending")
+
+    payout_id = f"pay_{uuid4().hex}"
+
+    entry = {
+        "id": payout_id,
+        "amount_usd": round(balance, 6),
+        "method": "paypal",
+        "status": "pending",
+        "requested_at": now_utc(),
+        "paypal_email": payout_account(user).get("paypal_email"),
+    }
+
+    new_history = append_payout_history(user, entry)
+
+    supabase.table("users").update({
+        "payout_status": {
+            "current": "pending",
+            "history": new_history,
+        },
+        "updated_at": now_utc(),
+    }).eq("user_id", user["user_id"]).execute()
+
+    return {
+        "success": True,
+        "payout_id": payout_id,
+        "status": "pending",
+        "amount_usd": round(balance, 6),
+    }
+
+
+@app.post("/payout/mark-paid")
+def payout_mark_paid(
+    payload: MarkPaidIn,
+    authorization: str = Header(...)
+):
+    user = require_user_from_token(authorization)
+    state = payout_state(user)
+    history = list(state.get("history", []))
+
+    target = None
+    target_index = None
+
+    for i in range(len(history) - 1, -1, -1):
+        if history[i].get("id") == payload.payout_id:
+            target = history[i]
+            target_index = i
+            break
+
+    if not target:
+        raise HTTPException(status_code=404, detail="Payout request not found")
+
+    if target.get("status") == "paid":
+        return {"success": True, "already_paid": True}
+
+    amount = float(target.get("amount_usd", 0.0))
+    current_balance = float(user.get("earnings_usd", 0.0))
+
+    if current_balance < amount:
+        raise HTTPException(status_code=400, detail="Insufficient balance to mark paid")
+
+    target["status"] = "paid"
+    target["paid_at"] = now_utc()
+    history[target_index] = target
+
+    new_paid_total = float(user.get("total_paid_usd", 0.0)) + amount
+    new_balance = current_balance - amount
+
+    supabase.table("users").update({
+        "earnings_usd": round(new_balance, 6),
+        "total_paid_usd": round(new_paid_total, 6),
+        "payout_status": {
+            "current": "paid",
+            "history": history,
+        },
+        "updated_at": now_utc(),
+    }).eq("user_id", user["user_id"]).execute()
+
+    return {
+        "success": True,
+        "payout_id": payload.payout_id,
+        "status": "paid",
+        "amount_usd": round(amount, 6),
+        "new_balance_usd": round(new_balance, 6),
+}
