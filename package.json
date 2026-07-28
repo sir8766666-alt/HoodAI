@@ -1,14 +1,30 @@
 {
   "name": "hoodai",
-  "displayName": "hoodAI",
-  "description": "Shows a sponsored ad (image, text, link) in your editor while you work, and pays you a share of the revenue.",
-  "version": "0.1.1",
+  "displayName": "HoodAI",
+  "description": "Earn while you code. HoodAI displays sponsored recommendations inside your editor and shares revenue with users.",
+  "version": "0.2.0",
   "publisher": "hoodai",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sir8766666-alt/HoodAI.git"
+  },
+  "homepage": "https://github.com/sir8766666-alt/HoodAI",
+  "bugs": {
+    "url": "https://github.com/sir8766666-alt/HoodAI/issues"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
     "Other"
+  ],
+  "keywords": [
+    "ads",
+    "ai",
+    "earn",
+    "hoodai",
+    "sponsored"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -18,48 +34,48 @@
     "commands": [
       {
         "command": "hoodai.showAd",
-        "title": "hoodAI: Show Sponsored Panel"
+        "title": "HoodAI: Show Sponsored Ad"
       },
       {
         "command": "hoodai.showEarnings",
-        "title": "hoodAI: Show My Earnings"
+        "title": "HoodAI: Show Earnings"
       }
     ],
-    "contributes": {
-        "configuration": {
-            "title": "HoodAI",
-                "properties": {
-                      "hoodai.apiToken": {
-                              "type": "string",
-                                      "default": "",
-                                              "description": "Paste your HoodAI API Token from your dashboard."
-                                                    },
-                                                          "hoodai.refreshIntervalSeconds": {
-                                                                  "type": "number",
-                                                                          "default": 60,
-                                                                                  "minimum": 15,
-                                                                                          "description": "Refresh ads every N seconds."
-                                                                                                },
-                                                                                                      "hoodai.enabled": {
-                                                                                                              "type": "boolean",
-                                                                                                                      "default": true,
-                                                                                                                              "description": "Enable HoodAI sponsored ads."
-                                                                                                                                    }
-                                                                                                                                        }
-                                                                                                                                          }
-                                                                                                                                          }
-    },
-    
+    "configuration": {
+      "title": "HoodAI",
+      "properties": {
+        "hoodai.apiToken": {
+          "type": "string",
+          "default": "",
+          "description": "Paste your HoodAI API Token."
+        },
+        "hoodai.refreshIntervalSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 15,
+          "maximum": 3600,
+          "description": "Refresh sponsored ads every N seconds."
+        },
+        "hoodai.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable HoodAI sponsored ads."
+        }
+      }
+    }
+  },
   "scripts": {
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
-    "typescript": "^5.4.0"
+    "@vscode/vsce": "^3.2.2",
+    "typescript": "^5.4.5"
   },
   "dependencies": {
-    "@idlen/chat-sdk": "^1.0.5"
+    "@playanext/playa-yield-sdk": "^1.0.0"
   }
 }
