@@ -1,0 +1,10 @@
+.env
+.env.*
+**/.env
+**/.env.*
+app/**
+requirements.txt
+supabase_schema.sql
+render.yaml
+Dockerfile
+start.sh
