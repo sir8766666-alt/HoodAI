@@ -1,10 +1,48 @@
+# Backend
+app/**
+Dockerfile
+render.yaml
+requirements.txt
+start.sh
+supabase_schema.sql
+
+# Environment
 .env
 .env.*
-**/.env
-**/.env.*
-app/**
-requirements.txt
-supabase_schema.sql
-render.yaml
-Dockerfile
-start.sh
+!.env.example
+
+# Source (compiled JS in out/ is enough)
+src/**
+
+# Logs
+*.log
+proxy.log
+
+# Git
+.git/**
+.github/**
+.gitignore
+
+# Maps
+**/*.map
+
+# Docs
+*.md
+!README.md
+
+# Tests
+test/**
+tests/**
+coverage/**
+
+# VS Code
+.vscode/**
+.vscodeignore
+
+# Node modules
+node_modules/**
+!node_modules/@idlen/**
+!node_modules/@idlen/chat-sdk/**
+!node_modules/@idlen/chat-sdk/dist/**
+!node_modules/@idlen/chat-sdk/package.json
+!node_modules/@idlen/chat-sdk/README.md
