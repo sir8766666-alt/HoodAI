@@ -178,6 +178,37 @@ async function ensureLoggedIn(): Promise<boolean> {
 /*                              Ad Fetching                                   */
 /* -------------------------------------------------------------------------- */
 
+
+
+/* -------------------------------------------------------------------------- */
+/*                           Impression Tracking                              */
+/* -------------------------------------------------------------------------- */
+
+async function sendImpression() {
+
+    if (!currentAd) return;
+
+    try {
+
+        await request(
+            "POST",
+            `${API_BASE}/ad/impression`,
+            {
+                provider: currentAd.provider,
+                ad_id: currentAd.ad_id,
+                ad_title: currentAd.title ?? currentAd.text,
+                impression_id: currentAd.impression_id
+            }
+        );
+
+    } catch {}
+
+}
+
+/* -------------------------------------------------------------------------- */
+/*                               Click Tracking                               */
+/* -------------------------------------------------------------------------- */
+
 async function fetchAd(): Promise<void> {
 
     const loggedIn = await ensureLoggedIn();
@@ -210,7 +241,11 @@ async function fetchAd(): Promise<void> {
 
         statusBarItem.show();
 
+        // Log impression
         await sendImpression();
+
+        // ⭐ NEW: Automatically open the sponsored card
+        await showAdPanel(false);
 
     } catch (err) {
 
@@ -219,35 +254,6 @@ async function fetchAd(): Promise<void> {
     }
 
 }
-
-/* -------------------------------------------------------------------------- */
-/*                           Impression Tracking                              */
-/* -------------------------------------------------------------------------- */
-
-async function sendImpression() {
-
-    if (!currentAd) return;
-
-    try {
-
-        await request(
-            "POST",
-            `${API_BASE}/ad/impression`,
-            {
-                provider: currentAd.provider,
-                ad_id: currentAd.ad_id,
-                ad_title: currentAd.title ?? currentAd.text,
-                impression_id: currentAd.impression_id
-            }
-        );
-
-    } catch {}
-
-}
-
-/* -------------------------------------------------------------------------- */
-/*                               Click Tracking                               */
-/* -------------------------------------------------------------------------- */
 
 async function sendClick() {
 
@@ -288,122 +294,121 @@ function truncate(text: string, length: number): string {
 /*                               Sponsored UI                                 */
 /* -------------------------------------------------------------------------- */
 
-async function showAdPanel() {
+async function showAdPanel(trackClick: boolean = true) {
 
     if (!currentAd) {
-
-        vscode.window.showInformationMessage(
-            "No sponsored content available."
-        );
-
         return;
-
     }
 
-    await sendClick();
+    if (trackClick) {
+        await sendClick();
+    }
 
     const panel = vscode.window.createWebviewPanel(
         "hoodaiSponsored",
         "Sponsored",
         vscode.ViewColumn.Beside,
         {
-            enableScripts: false
+            enableScripts: true
         }
     );
 
     panel.webview.html = `
 <!DOCTYPE html>
 <html>
-
 <head>
-
 <meta charset="UTF-8">
-
 <style>
 
 body{
+    background:#111;
+    color:white;
+    font-family:Segoe UI,sans-serif;
+    padding:24px;
+}
 
-background:#111;
-
-color:white;
-
-font-family:Segoe UI,sans-serif;
-
-padding:24px;
-
+.card{
+    background:#1b1b1b;
+    border-radius:14px;
+    overflow:hidden;
+    border:1px solid #333;
 }
 
 img{
+    width:100%;
+    display:block;
+}
 
-max-width:220px;
+.content{
+    padding:18px;
+}
 
-border-radius:10px;
+h2{
+    margin:0 0 10px;
+}
 
-margin-bottom:18px;
-
+p{
+    line-height:1.6;
+    opacity:.9;
 }
 
 a{
-
-display:inline-block;
-
-margin-top:20px;
-
-padding:10px 18px;
-
-background:#ff7a18;
-
-color:white;
-
-text-decoration:none;
-
-border-radius:8px;
-
-font-weight:600;
-
+    display:inline-block;
+    margin-top:18px;
+    background:#ff7a18;
+    color:white;
+    text-decoration:none;
+    padding:10px 18px;
+    border-radius:8px;
+    font-weight:600;
 }
 
 small{
-
-display:block;
-
-margin-top:28px;
-
-opacity:.55;
-
+    display:block;
+    margin-top:20px;
+    opacity:.6;
 }
 
 </style>
-
 </head>
 
 <body>
 
-${currentAd.image
-? `<img src="${currentAd.image}"/>`
-: ""}
+<div class="card">
 
-<h2>Sponsored</h2>
+${
+currentAd.image
+? `<img src="${currentAd.image}" />`
+: ""
+}
+
+<div class="content">
+
+<h2>${currentAd.title ?? "Sponsored"}</h2>
 
 <p>${currentAd.text}</p>
 
-${currentAd.link
+${
+currentAd.link
 ? `<a href="${currentAd.link}">
 Learn More →
 </a>`
-: ""}
+: ""
+}
 
 <small>
 Ads powered by HoodAI
 </small>
 
-</body>
+</div>
 
+</div>
+
+</body>
 </html>
 `;
 
 }
-
 /* -------------------------------------------------------------------------- */
 /*                              Earnings                                      */
 /* -------------------------------------------------------------------------- */
