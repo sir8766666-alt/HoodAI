@@ -282,12 +282,13 @@ def ad_next(authorization: str = Header(...)):
     # Replace this later with PlayaYield live ad fetch logic.
     return {
         "ad_id": "test-001",
-        "provider": "playayield",
+        "provider": "Higgsfield AI",
         "title": "Sponsored",
-        "text": "Deploy faster with HoodAI.",
-        "image": "https://via.placeholder.com/300x180.png?text=Sponsored",
-        "link": "https://example.com",
+        "text": "Get Free higgsfield AI ",
+        "image": "https://share.google/sVCMcthASojmXh38N",
+        "link": "https://higgsfield.ai/",
     }
+
     
 # -----------------------------------------------------------------------------
 # Earnings helpers
