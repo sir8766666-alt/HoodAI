@@ -2,7 +2,7 @@
   "name": "hoodai",
   "displayName": "HoodAI",
   "description": "Earn while you code. HoodAI displays sponsored recommendations inside your editor and shares revenue with users.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "hoodai",
   "license": "MIT",
   "repository": {
