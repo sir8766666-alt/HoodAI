@@ -23,7 +23,7 @@ import secrets
 import hashlib
 from datetime import datetime, timezone
 from typing import Optional, Literal
-
+from fastapi import Header, HTTPException
 from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel, Field
 from supabase import create_client, Client
@@ -262,6 +262,33 @@ def verify_token(
         "email": user["email"]
     }
 
+
+# -----------------------------------------------------------------------------
+# Ad serving
+# -----------------------------------------------------------------------------
+
+@app.get("/ad/next")
+def ad_next(authorization: str = Header(...)):
+    """
+    Returns the next sponsored ad for the authenticated user.
+    """
+
+    user = require_user_from_token(authorization)
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid API token")
+
+    # Temporary ad payload for testing.
+    # Replace this later with PlayaYield live ad fetch logic.
+    return {
+        "ad_id": "test-001",
+        "provider": "playayield",
+        "title": "Sponsored",
+        "text": "Deploy faster with HoodAI.",
+        "image": "https://via.placeholder.com/300x180.png?text=Sponsored",
+        "link": "https://example.com",
+    }
+    
 # -----------------------------------------------------------------------------
 # Earnings helpers
 # -----------------------------------------------------------------------------
