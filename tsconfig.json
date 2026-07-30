@@ -3,11 +3,7 @@
     "target": "ES2022",
     "module": "ES2022",
     "moduleResolution": "Bundler",
-    "lib": [
-      "DOM",
-      "DOM.Iterable",
-      "ES2022"
-    ],
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "strict": true,
     "skipLibCheck": true,
     "allowJs": false,
@@ -15,15 +11,13 @@
     "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
-    "sourceMap": false,
     "outDir": "dist",
     "rootDir": "src",
-    "types": [
-      "chrome",
-      "node"
-    ]
+    "types": ["chrome", "node"]
   },
   "include": [
-    "src/**/*.ts"
+    "src/background.ts",
+    "src/content.ts",
+    "src/popup.ts"
   ]
 }
