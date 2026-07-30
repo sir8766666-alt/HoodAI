@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HoodAI</title>
+  <style>
+    body {
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      padding: 16px;
+      margin: 0;
+      width: 320px;
+      background: #0f0f10;
+      color: #fff;
+    }
+    .card {
+      background: #171717;
+      border: 1px solid #2a2a2a;
+      border-radius: 16px;
+      padding: 16px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+    p {
+      margin: 0 0 12px;
+      opacity: .75;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    label {
+      display: block;
+      margin: 12px 0 8px;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #333;
+      background: #111;
+      color: #fff;
+      outline: none;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    button {
+      flex: 1;
+      padding: 10px 12px;
+      border: 0;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 800;
+    }
+    .primary {
+      background: #ff7a18;
+      color: #fff;
+    }
+    .secondary {
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+    }
+    .status {
+      min-height: 18px;
+      margin-top: 12px;
+      font-size: 12px;
+      opacity: .85;
+    }
+    .ok { color: #7CFC98; }
+    .bad { color: #ff8a8a; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>HoodAI</h1>
+    <p>Paste your API token, enable the extension, and ads will appear only while the AI is waiting.</p>
+
+    <label for="apiToken">API Token</label>
+    <input id="apiToken" type="text" placeholder="hood_xxx..." />
+
+    <div class="row">
+      <input id="enabled" type="checkbox" />
+      <label for="enabled" style="margin:0;">Enabled</label>
+    </div>
+
+    <div class="actions">
+      <button id="saveBtn" class="primary">Save</button>
+      <button id="checkBtn" class="secondary">Check</button>
+    </div>
+
+    <div id="status" class="status"></div>
+  </div>
+
+  <script src="dist/popup.js"></script>
+</body>
+</html>
