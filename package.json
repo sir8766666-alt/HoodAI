@@ -1,81 +1,21 @@
 {
-  "name": "hoodai",
+  "name": "hoodai-browser-extension",
   "displayName": "HoodAI",
-  "description": "Earn while you code. HoodAI displays sponsored recommendations inside your editor and shares revenue with users.",
-  "version": "0.2.1",
-  "publisher": "hoodai",
+  "description": "Shows developer-sponsored ads while AI tools are generating responses.",
+  "version": "0.1.0",
+  "private": true,
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/sir8766666-alt/HoodAI.git"
-  },
-  "homepage": "https://github.com/sir8766666-alt/HoodAI",
-  "bugs": {
-    "url": "https://github.com/sir8766666-alt/HoodAI/issues"
-  },
-  "engines": {
-    "vscode": "^1.85.0"
-  },
-  "categories": [
-    "Other"
-  ],
-  "keywords": [
-    "ads",
-    "ai",
-    "earn",
-    "hoodai",
-    "sponsored"
-  ],
-  "activationEvents": [
-    "onStartupFinished"
-  ],
-  "main": "./out/extension.js",
-  "contributes": {
-    "commands": [
-      {
-        "command": "hoodai.showAd",
-        "title": "HoodAI: Show Sponsored Ad"
-      },
-      {
-        "command": "hoodai.showEarnings",
-        "title": "HoodAI: Show Earnings"
-      }
-    ],
-    "configuration": {
-      "title": "HoodAI",
-      "properties": {
-        "hoodai.apiToken": {
-          "type": "string",
-          "default": "",
-          "description": "Paste your HoodAI API Token."
-        },
-        "hoodai.refreshIntervalSeconds": {
-          "type": "number",
-          "default": 60,
-          "minimum": 15,
-          "maximum": 3600,
-          "description": "Refresh sponsored ads every N seconds."
-        },
-        "hoodai.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable HoodAI sponsored ads."
-        }
-      }
-    }
-  },
+  "type": "module",
   "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "package": "vsce package"
+    "clean": "rimraf dist",
+    "build": "npm run clean && tsc",
+    "watch": "tsc --watch",
+    "zip": "zip -r hoodai-browser.zip . -x node_modules/* -x .git/*"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "@types/vscode": "^1.85.0",
-    "@vscode/vsce": "^3.2.2",
-    "typescript": "^5.4.5"
-  },
-  "dependencies": {
-    "@playanext/playa-yield-sdk": "^1.0.0"
+    "@types/chrome": "^0.1.30",
+    "@types/node": "^24.0.0",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.8.3"
   }
 }
