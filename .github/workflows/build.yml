@@ -1,0 +1,45 @@
+name: Build HoodAI Extension
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Prepare package
+        run: |
+          mkdir -p package
+          cp manifest.json package/
+          cp popup.html package/
+          cp -r dist package/dist
+          if [ -d icons ]; then cp -r icons package/icons; fi
+
+      - name: Zip package
+        run: |
+          cd package
+          zip -r ../hoodai-extension.zip .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoodai-extension
+          path: hoodai-extension.zip
