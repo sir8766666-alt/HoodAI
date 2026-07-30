@@ -44,7 +44,8 @@ function checkConnection(): void {
     (res: PopupStatusResult) => {
       const err = chrome.runtime.lastError;
       if (err) {
-        setStatus(err.message, "bad");
+        const errorMessage = err.message ?? "Unknown error";
+        setStatus(errorMessage, "bad");
         return;
       }
 
