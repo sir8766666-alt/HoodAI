@@ -1,30 +1,39 @@
 {
   "manifest_version": 3,
-  "name": "HoodAI",
-  "description": "Earn passive income while coding with privacy-friendly sponsored content.",
+  "name": "HoodAI Wait Ads",
   "version": "0.1.0",
-
-  "permissions": [
-    "storage"
-  ],
-
+  "description": "Shows a sponsored developer card only while AI tools are waiting.",
+  "permissions": ["storage"],
   "host_permissions": [
-    "https://hoodai-zscw.onrender.com/*"
+    "https://hoodai-zscw.onrender.com/*",
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://claude.ai/*",
+    "https://cursor.com/*",
+    "https://*.cursor.com/*",
+    "https://lovable.dev/*",
+    "https://bolt.new/*",
+    "https://v0.dev/*"
   ],
-
   "background": {
-    "service_worker": "out/background.js",
+    "service_worker": "dist/background.js",
     "type": "module"
   },
-
-  "action": {
-    "default_title": "HoodAI",
-    "default_popup": "popup.html"
-  },
-
-  "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
-  }
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://claude.ai/*",
+        "https://cursor.com/*",
+        "https://*.cursor.com/*",
+        "https://lovable.dev/*",
+        "https://bolt.new/*",
+        "https://v0.dev/*"
+      ],
+      "js": ["dist/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
 }
