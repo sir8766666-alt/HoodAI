@@ -1,22 +1,80 @@
 {
-  "name":"hoodai-browser-extension",
+  "name": "hoodai",
   "displayName": "HoodAI",
-  "description": "Shows developer-sponsored ads while AI tools are generating responses.",
-  "version": "0.1.0",
-  "private": true,
+  "description": "Shows sponsored developer cards inside VS Code while AI tools are waiting.",
+  "version": "0.2.5",
+  "publisher": "hoodai",
   "license": "MIT",
-  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sir8766666-alt/HoodAI.git"
+  },
+  "homepage": "https://github.com/sir8766666-alt/HoodAI",
+  "bugs": {
+    "url": "https://github.com/sir8766666-alt/HoodAI/issues"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "ads",
+    "sponsored",
+    "developer",
+    "ai",
+    "hoodai"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "hoodai.showAd",
+        "title": "HoodAI: Show Sponsored Ad"
+      },
+      {
+        "command": "hoodai.showEarnings",
+        "title": "HoodAI: Show Earnings"
+      }
+    ],
+    "configuration": {
+      "title": "HoodAI",
+      "properties": {
+        "hoodai.apiToken": {
+          "type": "string",
+          "default": "",
+          "description": "Paste your HoodAI API Token."
+        },
+        "hoodai.refreshIntervalSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 15,
+          "maximum": 3600,
+          "description": "Refresh sponsored cards every N seconds."
+        },
+        "hoodai.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable HoodAI sponsored cards."
+        }
+      }
+    }
+  },
   "scripts": {
-    "clean": "rimraf dist",
-    "build": "npm run clean && tsc",
-    "watch": "tsc --watch",
-    "zip": "zip -r hoodai-browser.zip . -x node_modules/* -x .git/*"
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile",
+    "package": "vsce package"
   },
   "devDependencies": {
-    "@types/chrome": "^0.1.30",
-    "@types/node": "^24.13.3",
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.2",
     "rimraf": "^6.0.1",
-    "typescript": "^5.8.3",
-    "vscode": "^1.1.37"
+    "typescript": "^5.8.3"
   }
 }
