@@ -1,5 +1,10 @@
 {
-  "name": "hoodai-browser-extension",
+  "engines": {
+      "vscode": "^1.90.0"
+      },
+      "main": "./out/extension.js",
+      "activationEvents": ["*"]
+  "name":"hoodai-browser-extension",
   "displayName": "HoodAI",
   "description": "Shows developer-sponsored ads while AI tools are generating responses.",
   "version": "0.1.0",
