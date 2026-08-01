@@ -514,7 +514,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
 
-        vscode.workspace.onDidChangeConfiguration(event => {
+        vscode.workspace.onDidChangeConfiguration((event: vscode.ConfigurationChangeEvent) => {
 
             if (
                 event.affectsConfiguration("hoodai.refreshIntervalSeconds") ||
