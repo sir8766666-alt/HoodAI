@@ -32,7 +32,7 @@ export function showAdPanel(
 
   panel.webview.html = getWebviewHtml(safeTitle, safeText, safeLink, safeImage);
 
-  panel.webview.onDidReceiveMessage(async (message) => {
+  panel.webview.onDidReceiveMessage(async (message: { type?: string; [key: string]: unknown }) => {
     if (message?.type === "click" && ad.link) {
       try {
         await logClick(deviceId, ad.ad_id);
