@@ -1,0 +1,70 @@
+{
+  "manifest_version": 3,
+
+  "name": "HoodAI",
+
+  "description": "Shows developer sponsored content only while AI tools are generating.",
+
+  "version": "0.2.5",
+
+  "permissions": [
+    "storage",
+    "tabs",
+    "activeTab",
+    "alarms"
+  ],
+
+  "host_permissions": [
+    "https://claude.ai/*",
+    "https://*.cursor.com/*",
+    "https://lovable.dev/*",
+    "https://bolt.new/*",
+    "https://studio.firebase.google.com/*",
+    "https://replit.com/*",
+    "https://hoodai.dev/*",
+    "https://hoodai-zscw.onrender.com/*"
+  ],
+
+  "background": {
+    "service_worker": "dist/background.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://claude.ai/*",
+        "https://*.cursor.com/*",
+        "https://lovable.dev/*",
+        "https://bolt.new/*",
+        "https://studio.firebase.google.com/*",
+        "https://replit.com/*"
+      ],
+      "js": [
+        "dist/content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "action": {
+    "default_title": "HoodAI"
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "popup.html",
+        "popup.css",
+        "icons/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  }
+}
