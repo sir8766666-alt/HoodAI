@@ -1,76 +1,126 @@
-import * as https from "https";
-import * as http from "http";
-import * as vscode from "vscode";
+const API_BASE = "https://hoodai-zscw.onrender.com";
 
 export interface Ad {
-  ad_id: string;
-  title?: string;
-  text: string;
-  image?: string;
-  link?: string;
+
+    ad_id: string;
+
+    title: string;
+
+    text: string;
+
+    image: string;
+
+    link: string;
+
+    provider: string;
+
+    impression_id?: string;
+
 }
 
-function request(method: string, url: string, body?: unknown): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const lib = url.startsWith("https") ? https : http;
-    const payload = body ? JSON.stringify(body) : null;
-    const u = new URL(url);
+async function getToken(): Promise<string> {
 
-    const req = lib.request(
-      u,
-      {
+    const data = await chrome.storage.local.get("apiToken");
+
+    return data.apiToken ?? "";
+
+}
+
+async function request<T>(
+    method: string,
+    endpoint: string,
+    body?: unknown
+): Promise<T> {
+
+    const token = await getToken();
+
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+
         method,
+
         headers: {
-          "Content-Type": "application/json",
-          ...(payload ? { "Content-Length": Buffer.byteLength(payload) } : {}),
+
+            "Content-Type": "application/json",
+
+            ...(token
+                ? {
+                      Authorization: `Bearer ${token}`
+                  }
+                : {})
+
         },
-      },
-      (res) => {
-        let data = "";
-        res.on("data", (chunk) => (data += chunk));
-        res.on("end", () => {
-          try {
-            resolve(JSON.parse(data));
-          } catch {
-            resolve(null);
-          }
-        });
-      }
+
+        body: body ? JSON.stringify(body) : undefined
+
+    });
+
+    if (!response.ok) {
+
+        throw new Error(
+            `HTTP ${response.status}`
+        );
+
+    }
+
+    return response.json();
+
+}
+
+/* ------------------------------------------------ */
+
+export async function getNextAd(): Promise<Ad> {
+
+    return request<Ad>(
+        "GET",
+        "/ad/next"
     );
 
-    req.on("error", reject);
-    if (payload) req.write(payload);
-    req.end();
-  });
 }
 
-export function getBackendUrl(): string {
-  const cfg = vscode.workspace.getConfiguration("hoodai");
-  return cfg.get<string>("backendUrl") || "http://localhost:8000";
+/* ------------------------------------------------ */
+
+export async function sendImpression(
+    ad: Ad
+) {
+
+    return request(
+        "POST",
+        "/ad/impression",
+        {
+
+            provider: ad.provider,
+
+            ad_id: ad.ad_id,
+
+            ad_title: ad.title,
+
+            impression_id: ad.impression_id
+
+        }
+    );
+
 }
 
-export async function fetchNextAd(deviceId: string): Promise<Ad | null> {
-  const backendUrl = getBackendUrl();
-  return request("GET", `${backendUrl}/ad/next?device_id=${encodeURIComponent(deviceId)}`);
-}
+/* ------------------------------------------------ */
 
-export async function logImpression(deviceId: string, adId: string): Promise<void> {
-  const backendUrl = getBackendUrl();
-  await request("POST", `${backendUrl}/ad/impression`, {
-    device_id: deviceId,
-    ad_id: adId,
-  });
-}
+export async function sendClick(
+    ad: Ad
+) {
 
-export async function logClick(deviceId: string, adId: string): Promise<void> {
-  const backendUrl = getBackendUrl();
-  await request("POST", `${backendUrl}/ad/click`, {
-    device_id: deviceId,
-    ad_id: adId,
-  });
-}
+    return request(
+        "POST",
+        "/ad/click",
+        {
 
-export async function fetchStats(deviceId: string): Promise<any> {
-  const backendUrl = getBackendUrl();
-  return request("GET", `${backendUrl}/stats/${encodeURIComponent(deviceId)}`);
+            provider: ad.provider,
+
+            ad_id: ad.ad_id,
+
+            ad_title: ad.title,
+
+            impression_id: ad.impression_id
+
+        }
+    );
+
 }
