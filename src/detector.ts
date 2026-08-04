@@ -1,178 +1,106 @@
-export interface Detector {
+import { ClaudeDetector } from "./detectors/claude";
 
-    name: string;
+export interface Detector {
+    readonly name: string;
 
     match(): boolean;
 
     isGenerating(): boolean;
 
+    observeTerminalData?(data: string): void;
+
+    reset?(): void;
 }
 
-class ClaudeDetector implements Detector {
+class DetectorRegistry {
 
-    name = "Claude";
+    private detectors: Detector[] = [];
 
-    match() {
+    constructor() {
 
-        return location.hostname.includes("claude.ai");
+        this.detectors.push(
+            new ClaudeDetector()
+        );
+
+        // Future detectors:
+        // new CursorDetector()
+        // new ClineDetector()
+        // new RooCodeDetector()
+        // new GeminiDetector()
 
     }
 
-    isGenerating() {
+    getActiveDetector(): Detector | null {
 
-        if (document.querySelector('[aria-busy="true"]'))
-            return true;
+        for (const detector of this.detectors) {
 
-        if (document.querySelector('[role="progressbar"]'))
-            return true;
+            if (detector.match()) {
+
+                return detector;
+
+            }
+
+        }
+
+        return null;
+
+    }
+
+    isGenerating(): boolean {
+
+        const detector = this.getActiveDetector();
+
+        if (!detector) {
+
+            return false;
+
+        }
+
+        return detector.isGenerating();
+
+    }
+
+    observeTerminalData(data: string): void {
+
+        const detector = this.getActiveDetector();
 
         if (
-            document.body.innerText.includes("Thinking") ||
-            document.body.innerText.includes("Generating")
-        )
-            return true;
+            detector &&
+            detector.observeTerminalData
+        ) {
 
-        return false;
-
-    }
-
-}
-
-class CursorDetector implements Detector {
-
-    name = "Cursor";
-
-    match() {
-
-        return location.hostname.includes("cursor.com");
-
-    }
-
-    isGenerating() {
-
-        return !!document.querySelector(
-            '[aria-busy="true"]'
-        );
-
-    }
-
-}
-
-class LovableDetector implements Detector {
-
-    name = "Lovable";
-
-    match() {
-
-        return location.hostname.includes("lovable.dev");
-
-    }
-
-    isGenerating() {
-
-        return !!document.querySelector(
-            '[aria-busy="true"]'
-        );
-
-    }
-
-}
-
-class BoltDetector implements Detector {
-
-    name = "Bolt";
-
-    match() {
-
-        return location.hostname.includes("bolt.new");
-
-    }
-
-    isGenerating() {
-
-        return !!document.querySelector(
-            '[aria-busy="true"]'
-        );
-
-    }
-
-}
-
-class ReplitDetector implements Detector {
-
-    name = "Replit";
-
-    match() {
-
-        return location.hostname.includes("replit.com");
-
-    }
-
-    isGenerating() {
-
-        return !!document.querySelector(
-            '[aria-busy="true"]'
-        );
-
-    }
-
-}
-
-class FirebaseDetector implements Detector {
-
-    name = "Firebase Studio";
-
-    match() {
-
-        return location.hostname.includes(
-            "studio.firebase.google.com"
-        );
-
-    }
-
-    isGenerating() {
-
-        return !!document.querySelector(
-            '[aria-busy="true"]'
-        );
-
-    }
-
-}
-
-const detectors: Detector[] = [
-
-    new ClaudeDetector(),
-
-    new CursorDetector(),
-
-    new LovableDetector(),
-
-    new BoltDetector(),
-
-    new ReplitDetector(),
-
-    new FirebaseDetector()
-
-];
-
-export function getDetector(): Detector | null {
-
-    for (const detector of detectors) {
-
-        if (detector.match()) {
-
-            console.log(
-                "[HoodAI] Using detector:",
-                detector.name
-            );
-
-            return detector;
+            detector.observeTerminalData(data);
 
         }
 
     }
 
-    return null;
+    reset(): void {
+
+        const detector = this.getActiveDetector();
+
+        if (
+            detector &&
+            detector.reset
+        ) {
+
+            detector.reset();
+
+        }
+
+    }
+
+    getDetectorName(): string {
+
+        const detector = this.getActiveDetector();
+
+        return detector
+            ? detector.name
+            : "Unknown";
+
+    }
 
 }
+
+export const detectorRegistry =
+    new DetectorRegistry();
