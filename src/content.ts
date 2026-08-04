@@ -1,88 +1,127 @@
+import { getDetector } from "./detector";
+
 let generating = false;
 
-const START_PATTERNS = [
-    "Thinking...",
-    "Thinking",
-    "Generating...",
-    "Generating",
-    "Reasoning...",
-    "Loading..."
-];
+const detector = getDetector();
 
-function isGenerating(): boolean {
-
-    // Check page text
-    const bodyText = document.body.innerText;
-
-    for (const text of START_PATTERNS) {
-        if (bodyText.includes(text)) {
-            return true;
-        }
-    }
-
-    // aria-busy
-    if (document.querySelector('[aria-busy="true"]')) {
-        return true;
-    }
-
-    // Progress bars
-    if (document.querySelector('[role="progressbar"]')) {
-        return true;
-    }
-
-    // Common loading spinners
-    if (
-        document.querySelector("svg.animate-spin") ||
-        document.querySelector(".animate-spin") ||
-        document.querySelector(".spinner") ||
-        document.querySelector(".loading")
-    ) {
-        return true;
-    }
-
-    return false;
+if (!detector) {
+    console.warn("[HoodAI] Unsupported website.");
 }
 
-function updateState() {
+function generationStarted() {
 
-    const waiting = isGenerating();
+    chrome.runtime.sendMessage({
+        type: "generation_started"
+    });
+
+    console.log("[HoodAI] Generation Started");
+
+}
+
+function generationFinished() {
+
+    chrome.runtime.sendMessage({
+        type: "generation_finished"
+    });
+
+    console.log("[HoodAI] Generation Finished");
+
+}
+
+function checkGenerationState() {
+
+    if (!detector) {
+        return;
+    }
+
+    const waiting = detector.isGenerating();
 
     if (waiting && !generating) {
 
         generating = true;
 
-        chrome.runtime.sendMessage({
-            type: "generation_started"
-        });
+        generationStarted();
 
-        console.log("[HoodAI] Generation Started");
-    }
-
-    if (!waiting && generating) {
+    } else if (!waiting && generating) {
 
         generating = false;
 
-        chrome.runtime.sendMessage({
-            type: "generation_finished"
-        });
+        generationFinished();
 
-        console.log("[HoodAI] Generation Finished");
     }
+
 }
 
+/* ---------------------------------------------------------- */
+/* Mutation Observer                                           */
+/* ---------------------------------------------------------- */
+
 const observer = new MutationObserver(() => {
-    updateState();
+
+    checkGenerationState();
+
 });
 
-observer.observe(document.body, {
+observer.observe(document.documentElement, {
+
     childList: true,
+
     subtree: true,
-    attributes: true,
-    characterData: true
+
+    characterData: true,
+
+    attributes: true
+
 });
 
-// Initial check
-updateState();
+/* ---------------------------------------------------------- */
+/* Initial Check                                               */
+/* ---------------------------------------------------------- */
 
-// Fallback polling every second
-setInterval(updateState, 1000);
+window.addEventListener("load", () => {
+
+    checkGenerationState();
+
+});
+
+/* ---------------------------------------------------------- */
+/* Fallback Polling                                            */
+/* ---------------------------------------------------------- */
+
+setInterval(() => {
+
+    checkGenerationState();
+
+}, 1000);
+
+/* ---------------------------------------------------------- */
+/* Page Visibility                                             */
+/* ---------------------------------------------------------- */
+
+document.addEventListener("visibilitychange", () => {
+
+    if (document.hidden && generating) {
+
+        generating = false;
+
+        generationFinished();
+
+    }
+
+});
+
+/* ---------------------------------------------------------- */
+/* Cleanup                                                     */
+/* ---------------------------------------------------------- */
+
+window.addEventListener("beforeunload", () => {
+
+    observer.disconnect();
+
+    if (generating) {
+
+        generationFinished();
+
+    }
+
+});
