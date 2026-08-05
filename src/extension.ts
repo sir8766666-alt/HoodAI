@@ -1,106 +1,130 @@
 import * as vscode from "vscode";
 import { detectorRegistry } from "./detector";
-import { HoodPanel } from "./panel";
+import { HoodPanel, Ad } from "./panel";
 
 let panel: HoodPanel | undefined;
-let activeDetectorName = "Unknown";
+
+const demoAd: Ad = {
+  ad_id: "hoodai-demo-001",
+  title: "Sponsored",
+  text: "Ship faster with HoodAI developer tools.",
+  image: "",
+  link: "https://hoodai.dev",
+  provider: "hoodai",
+};
 
 function getActiveTerminalName(): string {
-    return vscode.window.activeTerminal?.name ?? "";
+  return vscode.window.activeTerminal?.name ?? "";
 }
 
-function syncState(context: vscode.ExtensionContext): void {
-    const terminalName = getActiveTerminalName();
-    const detector = detectorRegistry.detect(terminalName);
-    const generating = Boolean(detector);
+function isClaudeActive(): boolean {
+  const detector = detectorRegistry.detect(getActiveTerminalName());
+  return Boolean(detector);
+}
 
-    activeDetectorName = detector?.name ?? "Unknown";
+function syncPanel(context: vscode.ExtensionContext): void {
+  const generating = isClaudeActive();
 
-    if (generating) {
-        if (!panel) {
-            panel = new HoodPanel(context);
+  if (generating) {
+    if (!panel) {
+      panel = new HoodPanel(async (ad: Ad) => {
+        if (ad.link) {
+          await vscode.env.openExternal(vscode.Uri.parse(ad.link));
         }
+      });
 
-        panel.setGenerating(true);
-        panel.show();
-        return;
+      context.subscriptions.push({
+        dispose: () => {
+          panel?.dispose();
+          panel = undefined;
+        },
+      });
     }
 
-    if (panel) {
-        panel.setGenerating(false);
-        panel.dispose();
-        panel = undefined;
-    }
+    panel.show(demoAd);
+    return;
+  }
+
+  if (panel) {
+    panel.dispose();
+    panel = undefined;
+  }
 }
 
 export function activate(context: vscode.ExtensionContext): void {
-    console.log("HoodAI activated");
+  console.log("HoodAI activated");
 
-    const openCommand = vscode.commands.registerCommand(
-        "hoodai.open",
-        () => {
-            if (!panel) {
-                panel = new HoodPanel(context);
-            }
+  context.subscriptions.push(
+    vscode.commands.registerCommand("hoodai.open", () => {
+      if (!panel) {
+        panel = new HoodPanel(async (ad: Ad) => {
+          if (ad.link) {
+            await vscode.env.openExternal(vscode.Uri.parse(ad.link));
+          }
+        });
 
-            panel.show();
-            panel.setGenerating(Boolean(detectorRegistry.detect(getActiveTerminalName())));
-        }
-    );
+        context.subscriptions.push({
+          dispose: () => {
+            panel?.dispose();
+            panel = undefined;
+          },
+        });
+      }
 
-    const refresh = () => syncState(context);
+      panel.show(demoAd);
+    })
+  );
 
-    context.subscriptions.push(openCommand);
+  context.subscriptions.push(
+    vscode.commands.registerCommand("hoodai.showAd", () => {
+      if (!panel) {
+        panel = new HoodPanel(async (ad: Ad) => {
+          if (ad.link) {
+            await vscode.env.openExternal(vscode.Uri.parse(ad.link));
+          }
+        });
+      }
 
-    context.subscriptions.push(
-        vscode.window.onDidChangeActiveTerminal(refresh)
-    );
+      panel.show(demoAd);
+    })
+  );
 
-    context.subscriptions.push(
-        vscode.window.onDidOpenTerminal(refresh)
-    );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("hoodai.showEarnings", () => {
+      vscode.window.showInformationMessage("HoodAI is installed and active.");
+    })
+  );
 
-    context.subscriptions.push(
-        vscode.window.onDidCloseTerminal(refresh)
-    );
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTerminal(() => syncPanel(context))
+  );
 
-    context.subscriptions.push(
-        vscode.workspace.onDidChangeConfiguration((event: vscode.ConfigurationChangeEvent) => {
-            if (
-                event.affectsConfiguration("hoodai.enabled") ||
-                event.affectsConfiguration("hoodai.apiToken") ||
-                event.affectsConfiguration("hoodai.refreshIntervalSeconds")
-            ) {
-                refresh();
-            }
-        })
-    );
+  context.subscriptions.push(
+    vscode.window.onDidOpenTerminal(() => syncPanel(context))
+  );
 
-    context.subscriptions.push(
-        vscode.commands.registerCommand("hoodai.showAd", () => {
-            if (!panel) {
-                panel = new HoodPanel(context);
-            }
+  context.subscriptions.push(
+    vscode.window.onDidCloseTerminal(() => syncPanel(context))
+  );
 
-            panel.show();
-            panel.setGenerating(Boolean(detectorRegistry.detect(getActiveTerminalName())));
-        })
-    );
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((event: vscode.ConfigurationChangeEvent) => {
+      if (
+        event.affectsConfiguration("hoodai.enabled") ||
+        event.affectsConfiguration("hoodai.apiToken") ||
+        event.affectsConfiguration("hoodai.refreshIntervalSeconds")
+      ) {
+        syncPanel(context);
+      }
+    })
+  );
 
-    context.subscriptions.push(
-        vscode.commands.registerCommand("hoodai.showEarnings", () => {
-            vscode.window.showInformationMessage(
-                `HoodAI active detector: ${activeDetectorName}`
-            );
-        })
-    );
-
-    refresh();
+  syncPanel(context);
 }
 
 export function deactivate(): void {
-    if (panel) {
-        panel.dispose();
-        panel = undefined;
-    }
+  if (panel) {
+    panel.dispose();
+    panel = undefined;
+  }
 }
