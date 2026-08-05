@@ -1,102 +1,90 @@
-import { ClaudeDetector } from "./detectors/claude";
-
 export interface Detector {
     readonly name: string;
 
-    match(): boolean;
-
-    isGenerating(): boolean;
-
-    observeTerminalData?(data: string): void;
-
-    reset?(): void;
+    match(terminalName: string): boolean;
 }
 
-class DetectorRegistry {
+export class ClaudeDetector implements Detector {
 
-    private detectors: Detector[] = [];
+    readonly name = "Claude Code";
 
-    constructor() {
+    match(terminalName: string): boolean {
 
-        this.detectors.push(
-            new ClaudeDetector()
+        const name = terminalName.toLowerCase();
+
+        return (
+            name.includes("claude") ||
+            name.includes("anthropic")
         );
 
-        // Future detectors:
-        // new CursorDetector()
-        // new ClineDetector()
-        // new RooCodeDetector()
-        // new GeminiDetector()
+    }
+
+}
+
+export class CursorDetector implements Detector {
+
+    readonly name = "Cursor";
+
+    match(terminalName: string): boolean {
+
+        return terminalName
+            .toLowerCase()
+            .includes("cursor");
 
     }
 
-    getActiveDetector(): Detector | null {
+}
 
-        for (const detector of this.detectors) {
+export class ClineDetector implements Detector {
 
-            if (detector.match()) {
+    readonly name = "Cline";
 
-                return detector;
+    match(terminalName: string): boolean {
 
-            }
-
-        }
-
-        return null;
+        return terminalName
+            .toLowerCase()
+            .includes("cline");
 
     }
 
-    isGenerating(): boolean {
+}
 
-        const detector = this.getActiveDetector();
+export class RooDetector implements Detector {
 
-        if (!detector) {
+    readonly name = "Roo Code";
 
-            return false;
+    match(terminalName: string): boolean {
 
-        }
+        const name = terminalName.toLowerCase();
 
-        return detector.isGenerating();
-
-    }
-
-    observeTerminalData(data: string): void {
-
-        const detector = this.getActiveDetector();
-
-        if (
-            detector &&
-            detector.observeTerminalData
-        ) {
-
-            detector.observeTerminalData(data);
-
-        }
+        return (
+            name.includes("roo") ||
+            name.includes("roo code")
+        );
 
     }
 
-    reset(): void {
+}
 
-        const detector = this.getActiveDetector();
+export class DetectorRegistry {
 
-        if (
-            detector &&
-            detector.reset
-        ) {
+    private readonly detectors: Detector[] = [
 
-            detector.reset();
+        new ClaudeDetector(),
 
-        }
+        new CursorDetector(),
 
-    }
+        new ClineDetector(),
 
-    getDetectorName(): string {
+        new RooDetector()
 
-        const detector = this.getActiveDetector();
+    ];
 
-        return detector
-            ? detector.name
-            : "Unknown";
+    public detect(terminalName: string): Detector | undefined {
+
+        return this.detectors.find(
+            detector => detector.match(terminalName)
+        );
 
     }
 
