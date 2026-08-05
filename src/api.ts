@@ -1,126 +1,142 @@
-const API_BASE = "https://hoodai-zscw.onrender.com";
+import * as vscode from "vscode";
 
-export interface Ad {
-
-    ad_id: string;
-
-    title: string;
-
-    text: string;
-
-    image: string;
-
-    link: string;
-
-    provider: string;
-
-    impression_id?: string;
-
+export interface ThinkingSession {
+    id: string;
+    tool: string;
+    startedAt: number;
+    active: boolean;
 }
 
-async function getToken(): Promise<string> {
-
-    const data = await chrome.storage.local.get("apiToken");
-
-    return data.apiToken ?? "";
-
+export interface HoodConfig {
+    serverUrl: string;
+    apiKey: string;
+    enabled: boolean;
 }
 
-async function request<T>(
-    method: string,
-    endpoint: string,
-    body?: unknown
-): Promise<T> {
+export class HoodAPI {
 
-    const token = await getToken();
+    private config: HoodConfig;
 
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-
-        method,
-
-        headers: {
-
-            "Content-Type": "application/json",
-
-            ...(token
-                ? {
-                      Authorization: `Bearer ${token}`
-                  }
-                : {})
-
-        },
-
-        body: body ? JSON.stringify(body) : undefined
-
-    });
-
-    if (!response.ok) {
-
-        throw new Error(
-            `HTTP ${response.status}`
-        );
-
+    constructor() {
+        this.config = this.loadConfig();
     }
 
-    return response.json();
+    private loadConfig(): HoodConfig {
+        const cfg = vscode.workspace.getConfiguration("hoodai");
 
-}
+        return {
+            serverUrl: cfg.get<string>("serverUrl", "https://your-domain.com"),
+            apiKey: cfg.get<string>("apiKey", ""),
+            enabled: cfg.get<boolean>("enabled", true)
+        };
+    }
 
-/* ------------------------------------------------ */
+    public reload() {
+        this.config = this.loadConfig();
+    }
 
-export async function getNextAd(): Promise<Ad> {
+    public isEnabled(): boolean {
+        return this.config.enabled;
+    }
 
-    return request<Ad>(
-        "GET",
-        "/ad/next"
-    );
+    public createSession(tool: string): ThinkingSession {
+        return {
+            id: crypto.randomUUID(),
+            tool,
+            startedAt: Date.now(),
+            active: true
+        };
+    }
 
-}
+    public async notifyThinkingStart(session: ThinkingSession): Promise<void> {
 
-/* ------------------------------------------------ */
+        if (!this.isEnabled()) return;
 
-export async function sendImpression(
-    ad: Ad
-) {
+        try {
 
-    return request(
-        "POST",
-        "/ad/impression",
-        {
+            await fetch(`${this.config.serverUrl}/api/thinking/start`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-api-key": this.config.apiKey
+                },
+                body: JSON.stringify(session)
+            });
 
-            provider: ad.provider,
-
-            ad_id: ad.ad_id,
-
-            ad_title: ad.title,
-
-            impression_id: ad.impression_id
-
+        } catch (err) {
+            console.error("HoodAI start error", err);
         }
-    );
+    }
 
-}
+    public async notifyThinkingStop(session: ThinkingSession): Promise<void> {
 
-/* ------------------------------------------------ */
+        if (!this.isEnabled()) return;
 
-export async function sendClick(
-    ad: Ad
-) {
+        try {
 
-    return request(
-        "POST",
-        "/ad/click",
-        {
+            await fetch(`${this.config.serverUrl}/api/thinking/stop`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-api-key": this.config.apiKey
+                },
+                body: JSON.stringify({
+                    id: session.id,
+                    tool: session.tool,
+                    duration: Date.now() - session.startedAt
+                })
+            });
 
-            provider: ad.provider,
-
-            ad_id: ad.ad_id,
-
-            ad_title: ad.title,
-
-            impression_id: ad.impression_id
-
+        } catch (err) {
+            console.error("HoodAI stop error", err);
         }
-    );
+    }
+
+    public async heartbeat(session: ThinkingSession): Promise<void> {
+
+        if (!this.isEnabled()) return;
+
+        try {
+
+            await fetch(`${this.config.serverUrl}/api/thinking/heartbeat`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-api-key": this.config.apiKey
+                },
+                body: JSON.stringify({
+                    id: session.id,
+                    tool: session.tool,
+                    elapsed: Date.now() - session.startedAt
+                })
+            });
+
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    public async reportView(tool: string): Promise<void> {
+
+        if (!this.isEnabled()) return;
+
+        try {
+
+            await fetch(`${this.config.serverUrl}/api/view`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-api-key": this.config.apiKey
+                },
+                body: JSON.stringify({
+                    tool,
+                    timestamp: Date.now()
+                })
+            });
+
+        } catch (err) {
+            console.error(err);
+        }
+    }
 
 }
