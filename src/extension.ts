@@ -4,7 +4,7 @@ import { HoodPanel } from "./panel";
 
 let panel: HoodPanel | undefined;
 
-const WEBSITE_URL = "https://your-website.com"; // change this
+const WEBSITE_URL = "https://comforting-eclair-002ce3.netlify.app/"; // change this
 
 function getActiveTerminalName(): string {
   return vscode.window.activeTerminal?.name ?? "";
