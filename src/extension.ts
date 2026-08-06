@@ -1,47 +1,28 @@
 import * as vscode from "vscode";
 import { detectorRegistry } from "./detector";
-import { HoodPanel, Ad } from "./panel";
+import { HoodPanel } from "./panel";
 
 let panel: HoodPanel | undefined;
 
-const demoAd: Ad = {
-  ad_id: "hoodai-demo-001",
-  title: "Sponsored",
-  text: "Ship faster with HoodAI developer tools.",
-  image: "",
-  link: "https://hoodai.dev",
-  provider: "hoodai",
-};
+const WEBSITE_URL = "https://your-website.com"; // change this
 
 function getActiveTerminalName(): string {
   return vscode.window.activeTerminal?.name ?? "";
 }
 
-function isClaudeActive(): boolean {
-  const detector = detectorRegistry.detect(getActiveTerminalName());
-  return Boolean(detector);
+function shouldShowPanel(): boolean {
+  const terminalName = getActiveTerminalName();
+  return Boolean(detectorRegistry.detect(terminalName));
 }
 
-function syncPanel(context: vscode.ExtensionContext): void {
-  const generating = isClaudeActive();
+function syncPanel(): void {
+  const active = shouldShowPanel();
 
-  if (generating) {
+  if (active) {
     if (!panel) {
-      panel = new HoodPanel(async (ad: Ad) => {
-        if (ad.link) {
-          await vscode.env.openExternal(vscode.Uri.parse(ad.link));
-        }
-      });
-
-      context.subscriptions.push({
-        dispose: () => {
-          panel?.dispose();
-          panel = undefined;
-        },
-      });
+      panel = new HoodPanel(WEBSITE_URL);
     }
-
-    panel.show(demoAd);
+    panel.show();
     return;
   }
 
@@ -57,55 +38,30 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("hoodai.open", () => {
       if (!panel) {
-        panel = new HoodPanel(async (ad: Ad) => {
-          if (ad.link) {
-            await vscode.env.openExternal(vscode.Uri.parse(ad.link));
-          }
-        });
-
-        context.subscriptions.push({
-          dispose: () => {
-            panel?.dispose();
-            panel = undefined;
-          },
-        });
+        panel = new HoodPanel(WEBSITE_URL);
       }
-
-      panel.show(demoAd);
+      panel.show();
     })
   );
 
   context.subscriptions.push(
     vscode.commands.registerCommand("hoodai.showAd", () => {
       if (!panel) {
-        panel = new HoodPanel(async (ad: Ad) => {
-          if (ad.link) {
-            await vscode.env.openExternal(vscode.Uri.parse(ad.link));
-          }
-        });
+        panel = new HoodPanel(WEBSITE_URL);
       }
-
-      panel.show(demoAd);
+      panel.show();
     })
   );
 
   context.subscriptions.push(
     vscode.commands.registerCommand("hoodai.showEarnings", () => {
-      vscode.window.showInformationMessage("HoodAI is installed and active.");
+      vscode.window.showInformationMessage("HoodAI is active.");
     })
   );
 
-  context.subscriptions.push(
-    vscode.window.onDidChangeActiveTerminal(() => syncPanel(context))
-  );
-
-  context.subscriptions.push(
-    vscode.window.onDidOpenTerminal(() => syncPanel(context))
-  );
-
-  context.subscriptions.push(
-    vscode.window.onDidCloseTerminal(() => syncPanel(context))
-  );
+  context.subscriptions.push(vscode.window.onDidChangeActiveTerminal(syncPanel));
+  context.subscriptions.push(vscode.window.onDidOpenTerminal(syncPanel));
+  context.subscriptions.push(vscode.window.onDidCloseTerminal(syncPanel));
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((event: vscode.ConfigurationChangeEvent) => {
@@ -114,12 +70,13 @@ export function activate(context: vscode.ExtensionContext): void {
         event.affectsConfiguration("hoodai.apiToken") ||
         event.affectsConfiguration("hoodai.refreshIntervalSeconds")
       ) {
-        syncPanel(context);
+        syncPanel();
       }
     })
   );
 
-  syncPanel(context);
+  setInterval(syncPanel, 1000);
+  syncPanel();
 }
 
 export function deactivate(): void {
