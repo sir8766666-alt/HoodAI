@@ -1,44 +1,44 @@
 import * as vscode from "vscode";
 
 export class HoodPanel {
-  private panel: vscode.WebviewPanel | undefined;
+    private panel: vscode.WebviewPanel | undefined;
 
-  constructor(private readonly websiteUrl: string) {}
+    constructor(private readonly websiteUrl: string) {}
 
-  public show(): void {
-    if (this.panel) {
-      this.panel.reveal(vscode.ViewColumn.Beside, false);
-      return;
+    public show(): void {
+        if (this.panel) {
+            this.panel.reveal(vscode.ViewColumn.Beside, false);
+            return;
+        }
+
+        this.panel = vscode.window.createWebviewPanel(
+            "hoodaiWebsite",
+            "HoodAI",
+            vscode.ViewColumn.Beside,
+            {
+                enableScripts: false,
+                retainContextWhenHidden: true
+            }
+        );
+
+        this.panel.webview.html = this.getHtml();
+
+        this.panel.onDidDispose(() => {
+            this.panel = undefined;
+        });
     }
 
-    this.panel = vscode.window.createWebviewPanel(
-      "hoodaiWebsite",
-      "HoodAI",
-      vscode.ViewColumn.Beside,
-      {
-        enableScripts: false,
-        retainContextWhenHidden: true
-      }
-    );
-
-    this.panel.webview.html = this.getHtml();
-
-    this.panel.onDidDispose(() => {
-      this.panel = undefined;
-    });
-  }
-
-  public dispose(): void {
-    if (this.panel) {
-      this.panel.dispose();
-      this.panel = undefined;
+    public dispose(): void {
+        if (this.panel) {
+            this.panel.dispose();
+            this.panel = undefined;
+        }
     }
-  }
 
-  private getHtml(): string {
-    const url = escapeHtml(this.websiteUrl);
+    private getHtml(): string {
+        const url = escapeHtml(this.websiteUrl);
 
-    return /* html */ `<!DOCTYPE html>
+        return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -56,7 +56,6 @@ export class HoodPanel {
     :root {
       color-scheme: dark;
       --bg: #0b0b0d;
-      --card: #121216;
       --border: rgba(255,255,255,.10);
       --text: #f5f5f7;
       --muted: rgba(245,245,247,.72);
@@ -111,14 +110,14 @@ export class HoodPanel {
   </div>
 </body>
 </html>`;
-  }
+    }
 }
 
 function escapeHtml(input: string): string {
-  return input
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+    return input
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
 }
