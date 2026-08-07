@@ -40,7 +40,7 @@ export function getConfig(): HoodConfig {
   };
 }
 
-function getAuthHeaders(): HeadersInit {
+function getAuthHeaders() {
   const { apiToken } = getConfig();
 
   if (!apiToken) {
