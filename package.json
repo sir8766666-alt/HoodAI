@@ -2,7 +2,7 @@
   "name": "hoodai",
   "displayName": "HoodAI",
   "description": "Shows sponsored developer cards while AI coding assistants are generating.",
-  "version": "0.2.5",
+  "version": "3.0.0",
   "publisher": "sir8766666",
   "license": "MIT",
   "repository": {
@@ -15,7 +15,9 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": ["onStartupFinished"],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {},
   "scripts": {
