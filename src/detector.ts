@@ -1,16 +1,24 @@
 import { ClaudeDetector } from "./detectors/claude";
 
 export interface Detector {
-  readonly name: string;
-  match(terminalName: string): boolean;
+    readonly name: string;
+    match(terminalName: string): boolean;
 }
 
-const detectors: Detector[] = [
-  new ClaudeDetector()
-];
+class DetectorRegistry {
 
-export const detectorRegistry = {
-  detect(terminalName: string): Detector | undefined {
-    return detectors.find((detector) => detector.match(terminalName));
-  }
-};
+    private readonly detectors: Detector[] = [
+        new ClaudeDetector()
+    ];
+
+    public detect(terminalName: string): Detector | undefined {
+
+        return this.detectors.find(detector =>
+            detector.match(terminalName)
+        );
+
+    }
+
+}
+
+export const detectorRegistry = new DetectorRegistry();
