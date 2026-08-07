@@ -1,4 +1,4 @@
-import * as vscode from "vscode";
+ import * as vscode from "vscode";
 import { detectorRegistry } from "./detector";
 import { HoodPanel } from "./panel";
 import { getWebsiteUrl, hasApiToken, isEnabled, verifyToken } from "./api";
@@ -45,7 +45,7 @@ function updateStatusBar(generating: boolean): void {
     : "$(megaphone) HoodAI";
 
   statusBarItem.tooltip = generating
-    ? `Showing website while ${activeDetectorName} is active`
+    ? `Showing your website while ${activeDetectorName} is active`
     : "HoodAI is ready";
 
   statusBarItem.command = "hoodai.showAd";
@@ -135,10 +135,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand("hoodai.openSettings", () => {
-      vscode.commands.executeCommand(
-        "workbench.action.openSettings",
-        "hoodai"
-      );
+      vscode.commands.executeCommand("workbench.action.openSettings", "hoodai");
     })
   );
 
