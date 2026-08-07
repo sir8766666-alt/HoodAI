@@ -1,142 +1,165 @@
 import * as vscode from "vscode";
 
-export interface ThinkingSession {
-    id: string;
-    tool: string;
-    startedAt: number;
-    active: boolean;
+export interface Ad {
+  ad_id: string;
+  title: string;
+  text: string;
+  image?: string;
+  link?: string;
+  provider?: string;
+  impression_id?: string;
 }
 
 export interface HoodConfig {
-    serverUrl: string;
-    apiKey: string;
-    enabled: boolean;
+  backendUrl: string;
+  apiToken: string;
+  enabled: boolean;
+  websiteUrl: string;
 }
 
-export class HoodAPI {
+export interface AuthCheckResult {
+  ok: boolean;
+  user?: {
+    user_id?: string;
+    email?: string;
+    name?: string;
+  };
+  error?: string;
+}
 
-    private config: HoodConfig;
+const DEFAULT_BACKEND_URL = "https://hoodai-zscw.onrender.com";
 
-    constructor() {
-        this.config = this.loadConfig();
+export function getConfig(): HoodConfig {
+  const cfg = vscode.workspace.getConfiguration("hoodai");
+
+  return {
+    backendUrl: cfg.get<string>("backendUrl", DEFAULT_BACKEND_URL).trim(),
+    apiToken: cfg.get<string>("apiToken", "").trim(),
+    enabled: cfg.get<boolean>("enabled", true),
+    websiteUrl: cfg.get<string>("websiteUrl", "https://hoodai.dev").trim(),
+  };
+}
+
+function getAuthHeaders(): HeadersInit {
+  const { apiToken } = getConfig();
+
+  if (!apiToken) {
+    return {
+      "Content-Type": "application/json",
+    };
+  }
+
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiToken}`,
+  };
+}
+
+async function requestJson<T>(
+  endpoint: string,
+  method: "GET" | "POST" = "GET",
+  body?: unknown
+): Promise<T> {
+  const { backendUrl, enabled } = getConfig();
+
+  if (!enabled) {
+    throw new Error("HoodAI is disabled.");
+  }
+
+  const response = await fetch(`${backendUrl}${endpoint}`, {
+    method,
+    headers: getAuthHeaders(),
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const raw = await response.text();
+  let parsed: any = null;
+
+  if (raw) {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = raw;
     }
+  }
 
-    private loadConfig(): HoodConfig {
-        const cfg = vscode.workspace.getConfiguration("hoodai");
+  if (!response.ok) {
+    const detail =
+      parsed?.detail ||
+      parsed?.error ||
+      `HTTP ${response.status}`;
 
-        return {
-            serverUrl: cfg.get<string>("serverUrl", "https://your-domain.com"),
-            apiKey: cfg.get<string>("apiKey", ""),
-            enabled: cfg.get<boolean>("enabled", true)
-        };
-    }
+    throw new Error(typeof detail === "string" ? detail : String(detail));
+  }
 
-    public reload() {
-        this.config = this.loadConfig();
-    }
+  return parsed as T;
+}
 
-    public isEnabled(): boolean {
-        return this.config.enabled;
-    }
+export async function verifyToken(): Promise<AuthCheckResult> {
+  const { apiToken } = getConfig();
 
-    public createSession(tool: string): ThinkingSession {
-        return {
-            id: crypto.randomUUID(),
-            tool,
-            startedAt: Date.now(),
-            active: true
-        };
-    }
+  if (!apiToken) {
+    return {
+      ok: false,
+      error: "Missing API token.",
+    };
+  }
 
-    public async notifyThinkingStart(session: ThinkingSession): Promise<void> {
+  try {
+    const result = await requestJson<AuthCheckResult>("/auth/me", "GET");
+    return result;
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Token verification failed.",
+    };
+  }
+}
 
-        if (!this.isEnabled()) return;
+export async function getNextAd(): Promise<Ad | null> {
+  try {
+    const ad = await requestJson<Ad>("/ad/next", "GET");
+    return ad;
+  } catch (err) {
+    console.error("[HoodAI] getNextAd failed:", err);
+    return null;
+  }
+}
 
-        try {
+export async function sendImpression(ad: Ad): Promise<void> {
+  try {
+    await requestJson("/ad/impression", "POST", {
+      provider: ad.provider,
+      ad_id: ad.ad_id,
+      ad_title: ad.title,
+      impression_id: ad.impression_id,
+    });
+  } catch (err) {
+    console.error("[HoodAI] sendImpression failed:", err);
+  }
+}
 
-            await fetch(`${this.config.serverUrl}/api/thinking/start`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": this.config.apiKey
-                },
-                body: JSON.stringify(session)
-            });
+export async function sendClick(ad: Ad): Promise<void> {
+  try {
+    await requestJson("/ad/click", "POST", {
+      provider: ad.provider,
+      ad_id: ad.ad_id,
+      ad_title: ad.title,
+      impression_id: ad.impression_id,
+    });
+  } catch (err) {
+    console.error("[HoodAI] sendClick failed:", err);
+  }
+}
 
-        } catch (err) {
-            console.error("HoodAI start error", err);
-        }
-    }
+export function getWebsiteUrl(): string {
+  return getConfig().websiteUrl;
+}
 
-    public async notifyThinkingStop(session: ThinkingSession): Promise<void> {
+export function isEnabled(): boolean {
+  return getConfig().enabled;
+}
 
-        if (!this.isEnabled()) return;
-
-        try {
-
-            await fetch(`${this.config.serverUrl}/api/thinking/stop`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": this.config.apiKey
-                },
-                body: JSON.stringify({
-                    id: session.id,
-                    tool: session.tool,
-                    duration: Date.now() - session.startedAt
-                })
-            });
-
-        } catch (err) {
-            console.error("HoodAI stop error", err);
-        }
-    }
-
-    public async heartbeat(session: ThinkingSession): Promise<void> {
-
-        if (!this.isEnabled()) return;
-
-        try {
-
-            await fetch(`${this.config.serverUrl}/api/thinking/heartbeat`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": this.config.apiKey
-                },
-                body: JSON.stringify({
-                    id: session.id,
-                    tool: session.tool,
-                    elapsed: Date.now() - session.startedAt
-                })
-            });
-
-        } catch (err) {
-            console.error(err);
-        }
-    }
-
-    public async reportView(tool: string): Promise<void> {
-
-        if (!this.isEnabled()) return;
-
-        try {
-
-            await fetch(`${this.config.serverUrl}/api/view`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": this.config.apiKey
-                },
-                body: JSON.stringify({
-                    tool,
-                    timestamp: Date.now()
-                })
-            });
-
-        } catch (err) {
-            console.error(err);
-        }
-    }
-
+export function hasApiToken(): boolean {
+  return getConfig().apiToken.length > 0;
 }
