@@ -36,10 +36,10 @@ app = FastAPI(title="HoodAI Backend")
 # -----------------------------------------------------------------------------
 
 class SignupIn(BaseModel):
+    name: str
     email: str
-    name: Optional[str] = None
+    password: str
     auth_provider: Literal["email", "google"] = "email"
-    auth_user_id: Optional[str] = None
 
 
 class VerifyIn(BaseModel):
