@@ -321,57 +321,298 @@ def append_payout_history(user: dict, entry: dict) -> list:
 
 
 # -----------------------------------------------------------------------------
-# Auth
+# Authentication
 # -----------------------------------------------------------------------------
 
-@app.post("/auth/signup")
-def auth_signup(payload: SignupIn):
-    user, api_token = bootstrap_user_row(
-        email=payload.email.strip().lower(),
+class AuthBootstrapIn(BaseModel):
+    name: Optional[str] = None
+
+
+def get_supabase_auth_user(authorization: Optional[str]) -> dict:
+    """
+    Verifies the Supabase Auth access token.
+
+    Supabase Auth handles:
+    - email/password verification
+    - Google authentication
+    - session/JWT validation
+
+    This backend never stores or checks passwords itself.
+    """
+
+    token = normalize_bearer_token(authorization)
+
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing Supabase access token"
+        )
+
+    try:
+        response = supabase.auth.get_user(token)
+    except Exception:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired Supabase session"
+        )
+
+    auth_user = getattr(response, "user", None)
+
+    if not auth_user:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid Supabase user"
+        )
+
+    return auth_user
+
+
+def get_auth_user_email(auth_user: object) -> str:
+    email = getattr(auth_user, "email", None)
+
+    if not email:
+        raise HTTPException(
+            status_code=400,
+            detail="Authenticated account has no email"
+        )
+
+    return email.strip().lower()
+
+
+def get_auth_user_name(auth_user: object) -> Optional[str]:
+    metadata = getattr(auth_user, "user_metadata", None) or {}
+
+    return (
+        metadata.get("name")
+        or metadata.get("full_name")
+        or metadata.get("display_name")
+    )
+
+
+def get_or_create_hoodai_user(
+    auth_user: object,
+    name: Optional[str] = None,
+) -> tuple[dict, Optional[str]]:
+
+    auth_user_id = str(getattr(auth_user, "id"))
+    email = get_auth_user_email(auth_user)
+
+    profile_name = (
+        name.strip()
+        if name and name.strip()
+        else get_auth_user_name(auth_user)
+    )
+
+    # ---------------------------------------------------------
+    # IMPORTANT:
+    # Identity is checked by Supabase Auth user ID first.
+    # Email is also checked to prevent duplicate profiles.
+    # ---------------------------------------------------------
+
+    existing = (
+        supabase.table("users")
+        .select("*")
+        .eq("auth_user_id", auth_user_id)
+        .limit(1)
+        .execute()
+    )
+
+    if existing.data:
+        user = existing.data[0]
+
+        patch = {
+            "email": email,
+            "updated_at": now_utc(),
+        }
+
+        if profile_name:
+            patch["name"] = profile_name
+
+        updated = (
+            supabase.table("users")
+            .update(patch)
+            .eq("user_id", user["user_id"])
+            .execute()
+        )
+
+        return updated.data[0], None
+
+    # ---------------------------------------------------------
+    # Fallback email check.
+    # This protects older users created before auth_user_id
+    # was added.
+    # ---------------------------------------------------------
+
+    existing_email = (
+        supabase.table("users")
+        .select("*")
+        .eq("email", email)
+        .limit(1)
+        .execute()
+    )
+
+    if existing_email.data:
+        user = existing_email.data[0]
+
+        patch = {
+            "auth_user_id": auth_user_id,
+            "email": email,
+            "updated_at": now_utc(),
+        }
+
+        if profile_name:
+            patch["name"] = profile_name
+
+        updated = (
+            supabase.table("users")
+            .update(patch)
+            .eq("user_id", user["user_id"])
+            .execute()
+        )
+
+        return updated.data[0], None
+
+    # ---------------------------------------------------------
+    # Brand-new HoodAI profile
+    # ---------------------------------------------------------
+
+    user_id = generate_user_id()
+    api_token = generate_api_token()
+
+    row = {
+        "auth_user_id": auth_user_id,
+        "user_id": user_id,
+        "email": email,
+        "name": profile_name,
+
+        "api_token_hash": hash_token(api_token),
+        "api_token_last4": token_last4(api_token),
+
+        "impressions_count": 0,
+        "clicks_count": 0,
+
+        "earnings_usd": 0.0,
+        "total_paid_usd": 0.0,
+
+        "payout_account": {},
+        "payout_status": {
+            "current": "none",
+            "history": [],
+        },
+
+        "created_at": now_utc(),
+        "updated_at": now_utc(),
+    }
+
+    created = (
+        supabase.table("users")
+        .insert(row)
+        .execute()
+    )
+
+    if not created.data:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create HoodAI profile"
+        )
+
+    return created.data[0], api_token
+
+
+# -----------------------------------------------------------------------------
+# POST /auth/bootstrap
+# -----------------------------------------------------------------------------
+
+@app.post("/auth/bootstrap")
+def auth_bootstrap(
+    payload: AuthBootstrapIn,
+    authorization: str = Header(...)
+):
+    """
+    Called immediately after successful Supabase signup/login.
+
+    Supabase has already authenticated:
+        email + password
+        OR
+        Google
+
+    This endpoint creates/loads the HoodAI profile.
+    """
+
+    auth_user = get_supabase_auth_user(authorization)
+
+    user, api_token = get_or_create_hoodai_user(
+        auth_user=auth_user,
         name=payload.name,
-        auth_provider=payload.auth_provider,
-        auth_user_id=payload.auth_user_id,
     )
 
     response = {
         "success": True,
-        "message": "Account created successfully.",
-        "user_id": user["user_id"],
-        "email": user["email"],
-        "name": user.get("name"),
-        "warning": "Save this API token now. It will not be shown again.",
+        "user": {
+            "user_id": user["user_id"],
+            "email": user["email"],
+            "name": user.get("name"),
+
+            "earnings_usd": float(
+                user.get("earnings_usd", 0)
+            ),
+
+            "impressions_count": int(
+                user.get("impressions_count", 0)
+            ),
+
+            "clicks_count": int(
+                user.get("clicks_count", 0)
+            ),
+
+            "total_paid_usd": float(
+                user.get("total_paid_usd", 0)
+            ),
+
+            "payout_account": user.get(
+                "payout_account", {}
+            ),
+
+            "payout_status": user.get(
+                "payout_status",
+                {
+                    "current": "none",
+                    "history": [],
+                }
+            ),
+
+            "api_token_last4": user.get(
+                "api_token_last4"
+            ),
+        },
     }
 
+    # API token is returned ONLY when the HoodAI
+    # profile is created for the first time.
     if api_token:
         response["api_token"] = api_token
+        response["warning"] = (
+            "Save your HoodAI API token now. "
+            "It will not be shown again."
+        )
 
     return response
 
 
-@app.post("/auth/bootstrap")
-def auth_bootstrap(payload: SignupIn):
-    """
-    Use this after Supabase Auth login.
-    It creates the profile row if missing.
-    """
-    user, api_token = bootstrap_user_row(
-        email=payload.email.strip().lower(),
-        name=payload.name,
-        auth_provider=payload.auth_provider,
-        auth_user_id=payload.auth_user_id,
-    )
-
-    return {
-        "success": True,
-        "user_id": user["user_id"],
-        "email": user["email"],
-        "name": user.get("name"),
-        "api_token": api_token,  # only returned if newly created
-    }
-
+# -----------------------------------------------------------------------------
+# GET /auth/me
+# -----------------------------------------------------------------------------
 
 @app.get("/auth/me")
-def auth_me(authorization: str = Header(...)):
+def auth_me(
+    authorization: str = Header(...)
+):
+    """
+    Used by the dashboard after it has a HoodAI API token.
+
+    Returns the complete HoodAI profile.
+    """
+
     user = require_user_from_token(authorization)
 
     return {
@@ -380,26 +621,71 @@ def auth_me(authorization: str = Header(...)):
             "user_id": user["user_id"],
             "email": user["email"],
             "name": user.get("name"),
-            "auth_provider": user.get("auth_provider"),
-            "earnings_usd": user.get("earnings_usd", 0),
-            "impressions_count": user.get("impressions_count", 0),
-            "clicks_count": user.get("clicks_count", 0),
-            "total_paid_usd": user.get("total_paid_usd", 0),
-            "created_at": user.get("created_at"),
-            "api_token_last4": user.get("api_token_last4"),
+
+            "earnings_usd": float(
+                user.get("earnings_usd", 0)
+            ),
+
+            "impressions_count": int(
+                user.get("impressions_count", 0)
+            ),
+
+            "clicks_count": int(
+                user.get("clicks_count", 0)
+            ),
+
+            "total_paid_usd": float(
+                user.get("total_paid_usd", 0)
+            ),
+
+            "payout_account": user.get(
+                "payout_account", {}
+            ),
+
+            "payout_status": user.get(
+                "payout_status",
+                {
+                    "current": "none",
+                    "history": [],
+                }
+            ),
+
+            "api_token_last4": user.get(
+                "api_token_last4"
+            ),
+
+            "created_at": user.get(
+                "created_at"
+            ),
         },
     }
 
 
+# -----------------------------------------------------------------------------
+# POST /auth/verify
+# -----------------------------------------------------------------------------
+
 @app.post("/auth/verify")
-def auth_verify(authorization: str = Header(...)):
+def auth_verify(
+    authorization: str = Header(...)
+):
+    """
+    Used by the VS Code extension.
+
+    IMPORTANT:
+    This verifies the HoodAI API token,
+    NOT the user's password.
+    """
+
     user = require_user_from_token(authorization)
+
     return {
         "success": True,
         "user_id": user["user_id"],
         "email": user["email"],
+        "name": user.get("name"),
+        "api_token_last4": user.get("api_token_last4"),
     }
-
 
 # -----------------------------------------------------------------------------
 # Ads
