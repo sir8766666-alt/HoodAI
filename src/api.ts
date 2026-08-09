@@ -6,7 +6,6 @@ export interface HoodConfig {
     backendUrl: string;
     apiToken: string;
     enabled: boolean;
-    websiteUrl: string;
 }
 
 export interface AuthCheckResult {
