@@ -100,7 +100,6 @@ export function getConfig(): HoodConfig {
         backendUrl: cfg.get<string>("backendUrl", DEFAULT_BACKEND_URL).trim(),
         apiToken: cfg.get<string>("apiToken", "").trim(),
         enabled: cfg.get<boolean>("enabled", true),
-        websiteUrl: cfg.get<string>("websiteUrl", "https://hoodai.dev").trim(),
     };
 }
 
@@ -112,8 +111,10 @@ export function isEnabled(): boolean {
     return getConfig().enabled;
 }
 
+const DEFAULT_WEBSITE_URL = "https://comforting-eclair-002ce3.netlify.app/";
+
 export function getWebsiteUrl(): string {
-    return getConfig().websiteUrl;
+    return DEFAULT_WEBSITE_URL;
 }
 
 function getAuthHeaders(): Record<string, string> {
