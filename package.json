@@ -1,13 +1,17 @@
 {
   "name": "hoodai",
   "displayName": "HoodAI",
-  "description": "Shows sponsored developer cards while AI coding assistants are generating.",
+  "description": "Shows sponsored developer content while AI coding assistants are active.",
   "version": "3.0.1",
   "publisher": "sir8766666",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/sir8766666-alt/HoodAI.git"
+  },
+  "homepage": "https://github.com/sir8766666-alt/HoodAI",
+  "bugs": {
+    "url": "https://github.com/sir8766666-alt/HoodAI/issues"
   },
   "engines": {
     "vscode": "^1.95.0"
@@ -16,10 +20,58 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onCommand:hoodai.open",
+    "onCommand:hoodai.showAd",
+    "onCommand:hoodai.showEarnings",
+    "onCommand:hoodai.openSettings",
+    "onCommand:hoodai.checkToken"
   ],
   "main": "./out/extension.js",
-  "contributes": {},
+  "contributes": {
+    "commands": [
+      {
+        "command": "hoodai.open",
+        "title": "HoodAI: Open Panel"
+      },
+      {
+        "command": "hoodai.showAd",
+        "title": "HoodAI: Show Website Panel"
+      },
+      {
+        "command": "hoodai.showEarnings",
+        "title": "HoodAI: Show Token Status"
+      },
+      {
+        "command": "hoodai.openSettings",
+        "title": "HoodAI: Open HoodAI Settings"
+      },
+      {
+        "command": "hoodai.checkToken",
+        "title": "HoodAI: Check API Token"
+      }
+    ],
+    "configuration": {
+      "title": "HoodAI",
+      "properties": {
+        "hoodai.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable HoodAI popup while Claude Code is active."
+        },
+        "hoodai.apiToken": {
+          "type": "string",
+          "default": "",
+          "description": "Paste your HoodAI API token here."
+        },
+        "hoodai.websiteUrl": {
+          "type": "string",
+          "default": "https://hoodai.dev",
+          "description": "Website shown in the HoodAI panel."
+        }
+      }
+    }
+  },
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
@@ -27,11 +79,10 @@
     "package": "vsce package"
   },
   "devDependencies": {
-    "@types/chrome": "^0.1.30",
     "@types/node": "^24.1.3",
     "@types/vscode": "^1.95.0",
-    "@vscode/vsce": "^3.6.0",
-    "typescript": "^5.8.3",
-    "vscode": "^1.1.37"
+    "@vscode/vsce": "^3.6.2",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.8.3"
   }
 }
