@@ -63,11 +63,6 @@
           "type": "string",
           "default": "",
           "description": "Paste your HoodAI API token here."
-        },
-        "hoodai.websiteUrl": {
-          "type": "string",
-          "default": "https://hoodai.dev",
-          "description": "Website shown in the HoodAI panel."
         }
       }
     }
