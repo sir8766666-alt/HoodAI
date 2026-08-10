@@ -1,7 +1,7 @@
 {
   "name": "hoodai",
   "displayName": "HoodAI",
-  "description": "Earn money 🤑 while your AI is thinking... don't let your attention get wasted..",
+  "description": "Earn money 💰 while your AI is thinking 🤔...",
   "version": "3.0.1",
   "publisher": "sir8766666",
   "license": "MIT",
@@ -36,11 +36,11 @@
       },
       {
         "command": "hoodai.showAd",
-        "title": "HoodAI: Show Website Panel"
+        "title": "HoodAI: Show Waiting Panel"
       },
       {
         "command": "hoodai.showEarnings",
-        "title": "HoodAI: Show Token Status"
+        "title": "HoodAI: Show Earnings"
       },
       {
         "command": "hoodai.openSettings",
@@ -62,7 +62,7 @@
         "hoodai.apiToken": {
           "type": "string",
           "default": "",
-          "description": "Paste your HoodAI API token here."
+          "description": "Paste your HoodAI access token here."
         }
       }
     }
