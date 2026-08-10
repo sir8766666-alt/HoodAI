@@ -1,12 +1,6 @@
 import * as vscode from "vscode";
 import { exec } from "child_process";
-import { DetectorState, DetectorStatus } from "../detector";
-
-const CLAUDE_MARKERS: Array<{ pattern: RegExp; name: string }> = [
-    { pattern: /\bclaude\b/i, name: "Claude Code" },
-    { pattern: /\bclaude-code\b/i, name: "Claude Code" },
-    { pattern: /\banthropic\b/i, name: "Claude Code" }
-];
+import { DetectorStatus } from "../detector";
 
 export class ClaudeDetector implements vscode.Disposable {
     private timer: NodeJS.Timeout | undefined;
@@ -14,14 +8,12 @@ export class ClaudeDetector implements vscode.Disposable {
 
     private status: DetectorStatus = {
         state: "idle",
-        assistant: undefined
+        assistant: undefined,
     };
 
     private listeners: Array<(status: DetectorStatus) => void> = [];
 
-    constructor(
-        private readonly intervalMs: number = 2500
-    ) {}
+    constructor(private readonly intervalMs: number = 1000) {}
 
     start(): void {
         if (this.timer || this.disposed) {
@@ -53,6 +45,7 @@ export class ClaudeDetector implements vscode.Disposable {
 
         return new vscode.Disposable(() => {
             const index = this.listeners.indexOf(listener);
+
             if (index !== -1) {
                 this.listeners.splice(index, 1);
             }
@@ -70,29 +63,35 @@ export class ClaudeDetector implements vscode.Disposable {
             return;
         }
 
-        try {
-            const assistant = await this.detectClaudeProcess();
+        const terminal = vscode.window.activeTerminal;
 
-            const nextStatus: DetectorStatus = assistant
-                ? {
-                    state: "thinking" as DetectorState,
-                    assistant
-                }
-                : {
-                    state: "idle" as DetectorState,
-                    assistant: undefined
-                };
+        // Claude Code terminal is the strongest signal in Codespaces.
+        const terminalName = terminal?.name?.toLowerCase() ?? "";
 
-            this.updateStatus(nextStatus);
-        } catch {
-            this.updateStatus({
-                state: "idle",
-                assistant: undefined
-            });
-        }
+        const terminalLooksLikeClaude =
+            terminalName.includes("claude") ||
+            terminalName.includes("anthropic");
+
+        const processLooksLikeClaude =
+            await this.detectClaudeProcess();
+
+        const claudeActive =
+            terminalLooksLikeClaude || processLooksLikeClaude;
+
+        const nextStatus: DetectorStatus = claudeActive
+            ? {
+                  state: "thinking",
+                  assistant: "Claude Code",
+              }
+            : {
+                  state: "idle",
+                  assistant: undefined,
+              };
+
+        this.updateStatus(nextStatus);
     }
 
-    private detectClaudeProcess(): Promise<string | undefined> {
+    private detectClaudeProcess(): Promise<boolean> {
         return new Promise((resolve) => {
             const command =
                 process.platform === "win32"
@@ -103,24 +102,28 @@ export class ClaudeDetector implements vscode.Disposable {
                 command,
                 {
                     timeout: 2000,
-                    maxBuffer: 1024 * 1024
+                    maxBuffer: 1024 * 1024,
                 },
                 (error, stdout) => {
                     if (error || !stdout) {
-                        resolve(undefined);
+                        resolve(false);
                         return;
                     }
 
                     const output = stdout.toLowerCase();
 
-                    for (const marker of CLAUDE_MARKERS) {
-                        if (marker.pattern.test(output)) {
-                            resolve(marker.name);
-                            return;
-                        }
-                    }
+                    const markers = [
+                        "claude-code",
+                        "@anthropic-ai/claude-code",
+                        "claude code",
+                        "anthropic",
+                    ];
 
-                    resolve(undefined);
+                    resolve(
+                        markers.some((marker) =>
+                            output.includes(marker)
+                        )
+                    );
                 }
             );
         });
@@ -140,8 +143,11 @@ export class ClaudeDetector implements vscode.Disposable {
         for (const listener of [...this.listeners]) {
             try {
                 listener(this.getStatus());
-            } catch {
-                // Keep detector stable even if one listener fails.
+            } catch (error) {
+                console.error(
+                    "[HoodAI] Detector listener failed:",
+                    error
+                );
             }
         }
     }
