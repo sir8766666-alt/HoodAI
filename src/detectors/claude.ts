@@ -63,20 +63,42 @@ export class ClaudeDetector implements vscode.Disposable {
             return;
         }
 
-        const terminal = vscode.window.activeTerminal;
+        // Check all terminals for Claude Code indicators (not just active terminal)
+        const terminals = vscode.window.terminals;
+        let terminalLooksLikeClaude = false;
+        let matchingTerminalName = "";
 
-        // Claude Code terminal is the strongest signal in Codespaces.
-        const terminalName = terminal?.name?.toLowerCase() ?? "";
+        for (const terminal of terminals) {
+            const name = terminal?.name?.toLowerCase() ?? "";
+            if (name.includes("claude") || name.includes("anthropic")) {
+                terminalLooksLikeClaude = true;
+                matchingTerminalName = name;
+                break; // Found one, no need to check further
+            }
+        }
 
-        const terminalLooksLikeClaude =
-            terminalName.includes("claude") ||
-            terminalName.includes("anthropic");
+        // Fallback to active terminal if no terminals found (shouldn't happen but safe)
+        if (terminals.length === 0) {
+            const activeTerminal = vscode.window.activeTerminal;
+            const activeName = activeTerminal?.name?.toLowerCase() ?? "";
+            terminalLooksLikeClaude =
+                activeName.includes("claude") ||
+                activeName.includes("anthropic");
+            matchingTerminalName = activeName;
+        }
 
         const processLooksLikeClaude =
             await this.detectClaudeProcess();
 
         const claudeActive =
             terminalLooksLikeClaude || processLooksLikeClaude;
+
+        // Diagnostic logging
+        console.log(`[HoodAI Detector] Terminals checked: ${terminals.length}`,
+                    `Matching terminal: "${matchingTerminalName}"`,
+                    `Terminal match: ${terminalLooksLikeClaude}`,
+                    `Process match: ${processLooksLikeClaude}`,
+                    `Claude active: ${claudeActive}`);
 
         const nextStatus: DetectorStatus = claudeActive
             ? {
@@ -106,6 +128,8 @@ export class ClaudeDetector implements vscode.Disposable {
                 },
                 (error, stdout) => {
                     if (error || !stdout) {
+                        console.log("[HoodAI Detector] Process detection failed:",
+                            error || "no stdout");
                         resolve(false);
                         return;
                     }
@@ -116,14 +140,22 @@ export class ClaudeDetector implements vscode.Disposable {
                         "claude-code",
                         "@anthropic-ai/claude-code",
                         "claude code",
+                        "claude",
                         "anthropic",
                     ];
 
-                    resolve(
-                        markers.some((marker) =>
-                            output.includes(marker)
-                        )
+                    const isClaudeProcess = markers.some((marker) =>
+                        output.includes(marker)
                     );
+
+                    console.log(`[HoodAI Detector] Process check: ${isClaudeProcess}`);
+                    if (isClaudeProcess) {
+                        // Log a snippet of the output for debugging (first 200 chars)
+                        const snippet = output.substring(0, Math.min(200, output.length));
+                        console.log(`[HoodAI Detector] Process output snippet: "${snippet}..."`);
+                    }
+
+                    resolve(isClaudeProcess);
                 }
             );
         });
