@@ -92,11 +92,15 @@ export interface PayoutRequestResult {
     error?: string;
 }
 
+function getBackendUrl(): string {
+    return DEFAULT_BACKEND_URL;
+}
+
 export function getConfig(): HoodConfig {
     const cfg = vscode.workspace.getConfiguration("hoodai");
 
     return {
-        backendUrl: cfg.get<string>("backendUrl", DEFAULT_BACKEND_URL).trim(),
+        backendUrl: getBackendUrl(),
         apiToken: cfg.get<string>("apiToken", "").trim(),
         enabled: cfg.get<boolean>("enabled", true),
     };
@@ -108,12 +112,6 @@ export function hasApiToken(): boolean {
 
 export function isEnabled(): boolean {
     return getConfig().enabled;
-}
-
-const DEFAULT_WEBSITE_URL = "https://comforting-eclair-002ce3.netlify.app/";
-
-export function getWebsiteUrl(): string {
-    return DEFAULT_WEBSITE_URL;
 }
 
 function getAuthHeaders(): Record<string, string> {
@@ -198,27 +196,6 @@ export async function getStats(): Promise<HoodStats> {
     } catch (error) {
         return {
             error: error instanceof Error ? error.message : "Failed to load stats.",
-        };
-    }
-}
-
-export async function bootstrapProfile(name?: string): Promise<{
-    success: boolean;
-    user_id?: string;
-    email?: string;
-    name?: string | null;
-    api_token?: string;
-    warning?: string;
-    error?: string;
-}> {
-    try {
-        return await requestJson("/auth/bootstrap", "POST", {
-            name: name?.trim() || undefined,
-        });
-    } catch (error) {
-        return {
-            success: false,
-            error: error instanceof Error ? error.message : "Bootstrap failed.",
         };
     }
 }
