@@ -2,229 +2,270 @@ import * as vscode from "vscode";
 import { createAIDetector, DetectorStatus } from "./detector";
 import { HoodPanel } from "./panel";
 import {
-  getWebsiteUrl,
-  hasApiToken,
-  isEnabled,
-  verifyToken,
-  getStats,
+    getWebsiteUrl,
+    hasApiToken,
+    isEnabled,
+    verifyToken,
+    getStats,
 } from "./api";
 
 let panel: HoodPanel | undefined;
 let statusBarItem: vscode.StatusBarItem | undefined;
+let earningsTimer: NodeJS.Timeout | undefined;
+const detector = createAIDetector(2500);
+
 let activeDetectorName = "Unknown";
-let currentGenerating = false;
-let currentWebsiteUrl = "";
-let detector = createAIDetector(2500);
+let currentBalanceText = "$0.00";
+let currentThinking = false;
 
 function disposePanel(): void {
-  if (panel) {
-    panel.dispose();
-    panel = undefined;
-  }
+    if (panel) {
+        panel.dispose();
+        panel = undefined;
+    }
 }
 
 function ensurePanel(): void {
-  const websiteUrl = getWebsiteUrl();
-
-  if (!panel || currentWebsiteUrl !== websiteUrl) {
-    disposePanel();
-    currentWebsiteUrl = websiteUrl;
-    panel = new HoodPanel(websiteUrl);
-  }
+    if (!panel) {
+        panel = new HoodPanel(getWebsiteUrl());
+    }
 }
 
-function updateStatusBar(generating: boolean): void {
-  if (!statusBarItem) {
-    return;
-  }
+function updateStatusBar(): void {
+    if (!statusBarItem) {
+        return;
+    }
 
-  if (!isEnabled()) {
-    statusBarItem.text = "$(circle-slash) HoodAI";
-    statusBarItem.tooltip = "HoodAI is disabled";
-    statusBarItem.command = "hoodai.open";
+    if (!isEnabled()) {
+        statusBarItem.text = "$(circle-slash) HoodAI";
+        statusBarItem.tooltip = "HoodAI is disabled";
+        statusBarItem.command = "hoodai.open";
+        statusBarItem.show();
+        return;
+    }
+
+    if (!hasApiToken()) {
+        statusBarItem.text = "$(key) HoodAI";
+        statusBarItem.tooltip = "Paste your HoodAI access token in settings";
+        statusBarItem.command = "hoodai.openSettings";
+        statusBarItem.show();
+        return;
+    }
+
+    const balance = currentBalanceText || "$0.00";
+
+    statusBarItem.text = currentThinking
+        ? `$(sync~spin) ${balance} · ${activeDetectorName}`
+        : `$(credit-card) ${balance}`;
+
+    statusBarItem.tooltip = currentThinking
+        ? `HoodAI is active while ${activeDetectorName} is thinking`
+        : `HoodAI balance: ${balance}`;
+
+    statusBarItem.command = "hoodai.showEarnings";
     statusBarItem.show();
-    return;
-  }
+}
 
-  if (!hasApiToken()) {
-    statusBarItem.text = "$(key) HoodAI";
-    statusBarItem.tooltip = "Paste your API token in HoodAI settings";
-    statusBarItem.command = "hoodai.openSettings";
-    statusBarItem.show();
-    return;
-  }
+async function refreshEarnings(): Promise<void> {
+    if (!hasApiToken() || !isEnabled()) {
+        currentBalanceText = "$0.00";
+        updateStatusBar();
+        return;
+    }
 
-  statusBarItem.text = generating
-    ? `$(sync~spin) HoodAI · ${activeDetectorName}`
-    : "$(megaphone) HoodAI";
+    const stats = await getStats();
 
-  statusBarItem.tooltip = generating
-    ? `Showing your website while ${activeDetectorName} is active`
-    : "HoodAI is ready";
+    if (stats.error) {
+        currentBalanceText = "$0.00";
+        updateStatusBar();
+        return;
+    }
 
-  statusBarItem.command = "hoodai.showAd";
-  statusBarItem.show();
+    const balance = stats.user?.balance_usd ?? 0;
+    currentBalanceText = `$${balance.toFixed(2)}`;
+    updateStatusBar();
 }
 
 function applyDetectorStatus(status: DetectorStatus): void {
-  const generating =
-    status.state === "thinking" && isEnabled() && hasApiToken();
+    currentThinking =
+        status.state === "thinking" && isEnabled() && hasApiToken();
 
-  activeDetectorName = status.assistant ?? "Unknown";
-  currentGenerating = generating;
+    activeDetectorName = status.assistant ?? "Unknown";
 
-  updateStatusBar(generating);
+    updateStatusBar();
 
-  if (generating) {
-    ensurePanel();
-    panel?.show();
-  } else {
-    disposePanel();
-  }
+    if (currentThinking) {
+        ensurePanel();
+        panel?.show();
+    } else {
+        disposePanel();
+    }
 }
 
 async function checkToken(): Promise<void> {
-  if (!hasApiToken()) {
-    vscode.window.showWarningMessage("HoodAI API token is missing.");
-    return;
-  }
+    if (!hasApiToken()) {
+        vscode.window.showWarningMessage("HoodAI access token is missing.");
+        return;
+    }
 
-  const result = await verifyToken();
+    const result = await verifyToken();
 
-  if (result.success) {
-    vscode.window.showInformationMessage(
-      `HoodAI token verified${result.email ? ` for ${result.email}` : ""}.`
+    if (result.success) {
+        vscode.window.showInformationMessage(
+            `HoodAI token verified${result.email ? ` for ${result.email}` : ""}.`
+        );
+        return;
+    }
+
+    vscode.window.showErrorMessage(
+        result.error ?? "HoodAI token verification failed."
     );
-    return;
-  }
-
-  vscode.window.showErrorMessage(
-    result.error ?? "HoodAI token verification failed."
-  );
 }
 
-async function showStats(): Promise<void> {
-  if (!hasApiToken()) {
-    vscode.window.showWarningMessage("HoodAI API token is missing.");
-    return;
-  }
+async function showEarnings(): Promise<void> {
+    if (!hasApiToken()) {
+        vscode.window.showWarningMessage("HoodAI access token is missing.");
+        return;
+    }
 
-  const stats = await getStats();
+    const stats = await getStats();
 
-  if (stats.error) {
-    vscode.window.showErrorMessage(stats.error);
-    return;
-  }
+    if (stats.error) {
+        vscode.window.showErrorMessage(stats.error);
+        return;
+    }
 
-  const balance = stats.user?.balance_usd ?? 0;
-  const today = stats.today?.earnings_usd ?? 0;
-  const month = stats.month?.earnings_usd ?? 0;
-  const impressions = stats.user?.payout_status ? stats.today?.impressions ?? 0 : 0;
-  const clicks = stats.today?.clicks ?? 0;
+    const balance = stats.user?.balance_usd ?? 0;
+    const today = stats.today?.earnings_usd ?? 0;
+    const month = stats.month?.earnings_usd ?? 0;
+    const impressions = stats.today?.impressions ?? 0;
+    const clicks = stats.today?.clicks ?? 0;
 
-  vscode.window.showInformationMessage(
-    `Balance: $${balance.toFixed(4)} | Today: $${today.toFixed(4)} | Month: $${month.toFixed(4)} | Impressions: ${impressions} | Clicks: ${clicks}`
-  );
+    vscode.window.showInformationMessage(
+        `Balance: $${balance.toFixed(2)} | Today: $${today.toFixed(2)} | Month: $${month.toFixed(2)} | Impressions: ${impressions} | Clicks: ${clicks}`
+    );
 }
 
 export function activate(context: vscode.ExtensionContext): void {
-  console.log("HoodAI activated");
+    console.log("HoodAI activated");
 
-  statusBarItem = vscode.window.createStatusBarItem(
-    vscode.StatusBarAlignment.Right,
-    100
-  );
-  statusBarItem.text = "$(megaphone) HoodAI";
-  statusBarItem.tooltip = "HoodAI";
-  statusBarItem.command = "hoodai.showAd";
-  statusBarItem.show();
+    statusBarItem = vscode.window.createStatusBarItem(
+        vscode.StatusBarAlignment.Right,
+        100
+    );
+    statusBarItem.text = "$(credit-card) $0.00";
+    statusBarItem.tooltip = "HoodAI balance";
+    statusBarItem.command = "hoodai.showEarnings";
+    statusBarItem.show();
 
-  context.subscriptions.push(statusBarItem);
+    context.subscriptions.push(statusBarItem);
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand("hoodai.open", () => {
-      ensurePanel();
-      panel?.show();
-    })
-  );
+    context.subscriptions.push(
+        vscode.commands.registerCommand("hoodai.open", () => {
+            ensurePanel();
+            panel?.show();
+        })
+    );
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand("hoodai.showAd", () => {
-      ensurePanel();
-      panel?.show();
-    })
-  );
+    context.subscriptions.push(
+        vscode.commands.registerCommand("hoodai.showAd", () => {
+            ensurePanel();
+            panel?.show();
+        })
+    );
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand("hoodai.showEarnings", async () => {
-      await showStats();
-    })
-  );
+    context.subscriptions.push(
+        vscode.commands.registerCommand("hoodai.showEarnings", async () => {
+            await showEarnings();
+        })
+    );
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand("hoodai.openSettings", () => {
-      vscode.commands.executeCommand(
-        "workbench.action.openSettings",
-        "hoodai"
-      );
-    })
-  );
+    context.subscriptions.push(
+        vscode.commands.registerCommand("hoodai.openSettings", () => {
+            vscode.commands.executeCommand(
+                "workbench.action.openSettings",
+                "hoodai"
+            );
+        })
+    );
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand("hoodai.checkToken", async () => {
-      await checkToken();
-    })
-  );
+    context.subscriptions.push(
+        vscode.commands.registerCommand("hoodai.checkToken", async () => {
+            await checkToken();
+        })
+    );
 
-  context.subscriptions.push(
-    vscode.window.onDidChangeActiveTerminal(() => {
-      applyDetectorStatus(detector.getStatus());
-    })
-  );
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveTerminal(() => {
+            applyDetectorStatus(detector.getStatus());
+        })
+    );
 
-  context.subscriptions.push(
-    vscode.window.onDidOpenTerminal(() => {
-      applyDetectorStatus(detector.getStatus());
-    })
-  );
+    context.subscriptions.push(
+        vscode.window.onDidOpenTerminal(() => {
+            applyDetectorStatus(detector.getStatus());
+        })
+    );
 
-  context.subscriptions.push(
-    vscode.window.onDidCloseTerminal(() => {
-      applyDetectorStatus(detector.getStatus());
-    })
-  );
+    context.subscriptions.push(
+        vscode.window.onDidCloseTerminal(() => {
+            applyDetectorStatus(detector.getStatus());
+        })
+    );
 
-  context.subscriptions.push(
-    vscode.workspace.onDidChangeConfiguration((event: vscode.ConfigurationChangeEvent) => {
-      if (
-        event.affectsConfiguration("hoodai.enabled") ||
-        event.affectsConfiguration("hoodai.apiToken") ||
-        event.affectsConfiguration("hoodai.websiteUrl")
-      ) {
-        applyDetectorStatus(detector.getStatus());
-      }
-    })
-  );
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration(
+            (event: vscode.ConfigurationChangeEvent) => {
+                if (
+                    event.affectsConfiguration("hoodai.enabled") ||
+                    event.affectsConfiguration("hoodai.apiToken")
+                ) {
+                    applyDetectorStatus(detector.getStatus());
+                    void refreshEarnings();
+                }
+            }
+        )
+    );
 
-  context.subscriptions.push(
-    detector.onStatusChange((status) => {
-      applyDetectorStatus(status);
-    })
-  );
+    context.subscriptions.push(
+        detector.onStatusChange((status) => {
+            applyDetectorStatus(status);
+        })
+    );
 
-  context.subscriptions.push(detector);
+    context.subscriptions.push(detector);
 
-  detector.start();
-  applyDetectorStatus(detector.getStatus());
+    detector.start();
+
+    void refreshEarnings();
+    earningsTimer = setInterval(() => {
+        void refreshEarnings();
+    }, 60000);
+
+    context.subscriptions.push({
+        dispose: () => {
+            if (earningsTimer) {
+                clearInterval(earningsTimer);
+                earningsTimer = undefined;
+            }
+        },
+    });
+
+    updateStatusBar();
 }
 
 export function deactivate(): void {
-  detector.stop();
+    detector.stop();
 
-  disposePanel();
+    if (earningsTimer) {
+        clearInterval(earningsTimer);
+        earningsTimer = undefined;
+    }
 
-  if (statusBarItem) {
-    statusBarItem.dispose();
-    statusBarItem = undefined;
-  }
+    disposePanel();
+
+    if (statusBarItem) {
+        statusBarItem.dispose();
+        statusBarItem = undefined;
+    }
 }
