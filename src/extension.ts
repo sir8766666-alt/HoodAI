@@ -81,7 +81,7 @@ async function refreshEarnings(): Promise<void> {
         return;
     }
 
-    const balance = stats.user?.balance_usd ?? 0;
+    const balance = stats.user?.earnings_usd ?? stats.earnings_usd ?? 0;
     currentBalanceText = `$${balance.toFixed(2)}`;
     updateStatusBar();
 }
@@ -135,11 +135,11 @@ async function showEarnings(): Promise<void> {
         return;
     }
 
-    const balance = stats.user?.balance_usd ?? 0;
+    const balance = stats.user?.earnings_usd ?? stats.earnings_usd ?? 0;
     const today = stats.today?.earnings_usd ?? 0;
     const month = stats.month?.earnings_usd ?? 0;
-    const impressions = stats.today?.impressions ?? 0;
-    const clicks = stats.today?.clicks ?? 0;
+    const impressions = stats.today?.impressions ?? stats.user?.impressions ?? stats.impressions ?? 0;
+    const clicks = stats.today?.clicks ?? stats.user?.clicks ?? stats.clicks ?? 0;
 
     vscode.window.showInformationMessage(
         `Balance: $${balance.toFixed(2)} | Today: $${today.toFixed(2)} | Month: $${month.toFixed(2)} | Impressions: ${impressions} | Clicks: ${clicks}`
