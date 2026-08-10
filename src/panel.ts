@@ -1,10 +1,13 @@
 import * as vscode from "vscode";
 
+const HOODAI_WEBPAGE_URL =
+    "https://comforting-eclair-002ce3.netlify.app/";
+
 export class HoodPanel {
     private panel: vscode.WebviewPanel | undefined;
 
     constructor(
-        private readonly websiteUrl: string
+        private readonly websiteUrl: string = HOODAI_WEBPAGE_URL
     ) {}
 
     public show(): void {
@@ -25,12 +28,8 @@ export class HoodPanel {
 
         this.panel.webview.html = this.getHtml();
 
-        // Receive messages from the webview.
         this.panel.webview.onDidReceiveMessage(
-            async (message: {
-                type?: string;
-                url?: string;
-            }) => {
+            async (message: { type?: string; url?: string }) => {
                 if (message.type === "openExternal") {
                     const url = message.url || this.websiteUrl;
 
@@ -54,8 +53,7 @@ export class HoodPanel {
                 if (message.type === "close") {
                     this.dispose();
                 }
-            },
-            undefined
+            }
         );
 
         this.panel.onDidDispose(() => {
@@ -77,7 +75,6 @@ export class HoodPanel {
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-
   <meta
     http-equiv="Content-Security-Policy"
     content="
@@ -88,18 +85,11 @@ export class HoodPanel {
       script-src 'unsafe-inline';
     "
   />
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  />
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HoodAI</title>
-
   <style>
     :root {
       color-scheme: dark;
-
       --bg: #0b0b0d;
       --border: rgba(255,255,255,.10);
       --text: #f5f5f7;
@@ -107,23 +97,14 @@ export class HoodPanel {
       --accent: #ff7a18;
     }
 
-    html,
-    body {
+    html, body {
       margin: 0;
       padding: 0;
       width: 100%;
       height: 100%;
       background: var(--bg);
       color: var(--text);
-      font-family:
-        Inter,
-        ui-sans-serif,
-        system-ui,
-        -apple-system,
-        BlinkMacSystemFont,
-        "Segoe UI",
-        sans-serif;
-
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       overflow: hidden;
     }
 
@@ -138,15 +119,10 @@ export class HoodPanel {
       display: flex;
       align-items: center;
       justify-content: space-between;
-
       gap: 12px;
-
       padding: 12px 14px;
-
       border-bottom: 1px solid var(--border);
-
       background: rgba(255,255,255,.03);
-
       flex-shrink: 0;
     }
 
@@ -176,14 +152,10 @@ export class HoodPanel {
     button {
       border: 0;
       border-radius: 10px;
-
       padding: 9px 12px;
-
       font-size: 12px;
       font-weight: 700;
-
       cursor: pointer;
-
       color: var(--text);
       background: rgba(255,255,255,.08);
     }
@@ -197,71 +169,42 @@ export class HoodPanel {
       color: white;
     }
 
-    button.primary:hover {
-      opacity: .9;
-    }
-
     iframe {
       flex: 1;
-
       width: 100%;
-
       border: 0;
-
       background: #fff;
     }
 
     .fallback {
       flex: 1;
-
       display: none;
-
       align-items: center;
       justify-content: center;
-
       padding: 24px;
-
       text-align: center;
-
       color: var(--muted);
-
       line-height: 1.55;
     }
 
     .fallback code {
       color: var(--text);
-
       word-break: break-all;
     }
   </style>
 </head>
-
 <body>
-
   <div class="wrap">
-
     <div class="topbar">
-
       <div class="brand">
         <strong>HoodAI</strong>
-
-        <span>
-          Showing your website while Claude Code is active
-        </span>
+        <span>Showing your website while AI is active</span>
       </div>
 
       <div class="actions">
-
-        <button id="refreshBtn">
-          Refresh
-        </button>
-
-        <button id="openBtn" class="primary">
-          Open in Browser
-        </button>
-
+        <button id="refreshBtn">Refresh</button>
+        <button id="openBtn" class="primary">Open in Browser</button>
       </div>
-
     </div>
 
     <iframe
@@ -270,98 +213,45 @@ export class HoodPanel {
       title="HoodAI Website"
     ></iframe>
 
-    <div
-      class="fallback"
-      id="fallback"
-    >
+    <div class="fallback" id="fallback">
       <div>
-
-        This site could not be embedded inside the webview.
-
-        <br />
-
-        Open it in your browser instead:
-
-        <br />
-        <br />
-
+        This site could not be embedded inside the webview.<br />
+        Open it in your browser instead:<br /><br />
         <code>${safeUrl}</code>
-
       </div>
     </div>
-
   </div>
 
   <script>
     const vscode = acquireVsCodeApi();
-
     const url = ${JSON.stringify(this.websiteUrl)};
 
-    const frame =
-      document.getElementById("hoodFrame");
+    const frame = document.getElementById("hoodFrame");
+    const fallback = document.getElementById("fallback");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const openBtn = document.getElementById("openBtn");
 
-    const fallback =
-      document.getElementById("fallback");
-
-    const refreshBtn =
-      document.getElementById("refreshBtn");
-
-    const openBtn =
-      document.getElementById("openBtn");
-
-
-    // --------------------------------------------------
-    // Refresh website
-    // --------------------------------------------------
-
-    refreshBtn?.addEventListener(
-      "click",
-      () => {
-        if (frame) {
-          frame.src = url;
-        }
+    refreshBtn?.addEventListener("click", () => {
+      if (frame) {
+        frame.src = url;
       }
-    );
+    });
 
-
-    // --------------------------------------------------
-    // Open website in the user's default browser
-    // --------------------------------------------------
-
-    openBtn?.addEventListener(
-      "click",
-      () => {
-
-        vscode.postMessage({
-          type: "openExternal",
-          url: url
-        });
-
-      }
-    );
-
-
-    // --------------------------------------------------
-    // iframe loading failure
-    // --------------------------------------------------
+    openBtn?.addEventListener("click", () => {
+      vscode.postMessage({
+        type: "openExternal",
+        url
+      });
+    });
 
     if (frame) {
-
-      frame.addEventListener(
-        "error",
-        () => {
-
-          if (fallback) {
-            fallback.style.display = "flex";
-          }
-
+      frame.addEventListener("error", () => {
+        if (fallback) {
+          fallback.style.display = "flex";
         }
-      );
-
+      });
     }
-
   </script>
-
 </body>
 </html>`;
     }
