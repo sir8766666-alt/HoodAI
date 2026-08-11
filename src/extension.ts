@@ -26,9 +26,8 @@ function disposePanel(): void {
 }
 
 function ensurePanel(): void {
-    if (!panel) {
-        panel = new HoodPanel(getWebsiteUrl());
-    }
+    disposePanel();
+    panel = new HoodPanel(getWebsiteUrl());
 }
 
 function updateStatusBar(): void {

@@ -12,14 +12,14 @@ export class HoodPanel {
 
     public show(): void {
         if (this.panel) {
-            this.panel.reveal(vscode.ViewColumn.Beside, false);
+            this.panel.reveal(vscode.ViewColumn.Beside, true);
             return;
         }
 
         this.panel = vscode.window.createWebviewPanel(
             "hoodaiWebsite",
             "HoodAI",
-            vscode.ViewColumn.Beside,
+            { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
             {
                 enableScripts: true,
                 retainContextWhenHidden: true
