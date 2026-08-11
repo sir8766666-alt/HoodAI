@@ -20,6 +20,7 @@ export class ClaudeDetector implements vscode.Disposable {
             return;
         }
 
+        console.log("[HoodAI Detector] Starting detector");
         void this.check();
 
         this.timer = setInterval(() => {
@@ -62,6 +63,8 @@ export class ClaudeDetector implements vscode.Disposable {
         if (this.disposed) {
             return;
         }
+
+        console.log("[HoodAI Detector] check() invoked");
 
         // Check all terminals for Claude Code indicators (not just active terminal)
         const terminals = vscode.window.terminals;
@@ -109,6 +112,9 @@ export class ClaudeDetector implements vscode.Disposable {
                   state: "idle",
                   assistant: undefined,
               };
+
+        console.log(`[HoodAI Detector] Previous status: ${JSON.stringify(this.status)}`);
+        console.log(`[HoodAI Detector] Next status: ${JSON.stringify(nextStatus)}`);
 
         this.updateStatus(nextStatus);
     }
@@ -167,9 +173,11 @@ export class ClaudeDetector implements vscode.Disposable {
             next.assistant !== this.status.assistant;
 
         if (!changed) {
+            console.log("[HoodAI Detector] Status unchanged, skipping update");
             return;
         }
 
+        console.log(`[HoodAI Detector] Status changing from ${JSON.stringify(this.status)} to ${JSON.stringify(next)}`);
         this.status = next;
 
         for (const listener of [...this.listeners]) {

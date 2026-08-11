@@ -236,6 +236,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
     detector.start();
 
+    // Perform an immediate check so the UI reflects the current state right away
+
     void refreshEarnings();
     earningsTimer = setInterval(() => {
         void refreshEarnings();
