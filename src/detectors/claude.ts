@@ -1,5 +1,4 @@
 import * as fs from "fs";
-import * as path from "path";
 import * as vscode from "vscode";
 import { DetectorStatus } from "../detector";
 
@@ -13,7 +12,6 @@ interface ClaudeStateFile {
 }
 
 export class ClaudeDetector implements vscode.Disposable {
-    private watcher: fs.StatWatcher | undefined;
     private pollTimer: NodeJS.Timeout | undefined;
     private disposed = false;
 
@@ -36,9 +34,8 @@ export class ClaudeDetector implements vscode.Disposable {
         this.readState();
 
         /*
-         * Watch the state file for changes.
-         * watchFile works well in Codespaces/Linux and does not
-         * require the file to exist before the extension starts.
+         * Watch the Claude state file for changes.
+         * watchFile works well in Codespaces/Linux.
          */
         try {
             fs.watchFile(
@@ -50,17 +47,15 @@ export class ClaudeDetector implements vscode.Disposable {
                     this.readState();
                 }
             );
-
-            this.watcher = fs.statSync
-                ? undefined
-                : undefined;
-        } catch {
-            // Fall back to polling below.
+        } catch (error) {
+            console.error(
+                "[HoodAI] Failed to watch Claude state file:",
+                error
+            );
         }
 
         /*
-         * Also poll so the detector still works if filesystem
-         * notifications are delayed or unavailable.
+         * Poll as a reliable fallback.
          */
         this.pollTimer = setInterval(() => {
             this.readState();
@@ -74,8 +69,6 @@ export class ClaudeDetector implements vscode.Disposable {
             clearInterval(this.pollTimer);
             this.pollTimer = undefined;
         }
-
-        this.watcher = undefined;
     }
 
     getStatus(): DetectorStatus {
