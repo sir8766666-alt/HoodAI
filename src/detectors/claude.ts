@@ -1,18 +1,9 @@
-import * as fs from "fs";
 import * as vscode from "vscode";
+import { exec } from "child_process";
 import { DetectorStatus } from "../detector";
 
-const STATE_FILE = "/tmp/hoodai/claude-state.json";
-
-interface ClaudeStateFile {
-    state?: "thinking" | "idle";
-    assistant?: string;
-    sessionId?: string;
-    updatedAt?: string;
-}
-
 export class ClaudeDetector implements vscode.Disposable {
-    private pollTimer: NodeJS.Timeout | undefined;
+    private timer: NodeJS.Timeout | undefined;
     private disposed = false;
 
     private status: DetectorStatus = {
@@ -22,59 +13,30 @@ export class ClaudeDetector implements vscode.Disposable {
 
     private listeners: Array<(status: DetectorStatus) => void> = [];
 
-    constructor(
-        private readonly pollIntervalMs: number = 500
-    ) {}
+    constructor(private readonly intervalMs: number = 1000) {}
 
     start(): void {
-        if (this.disposed) {
+        if (this.timer || this.disposed) {
             return;
         }
 
-        this.readState();
+        console.log("[HoodAI Detector] Starting detector");
+        void this.check();
 
-        /*
-         * Watch the Claude state file for changes.
-         * watchFile works well in Codespaces/Linux.
-         */
-        try {
-            fs.watchFile(
-                STATE_FILE,
-                {
-                    interval: this.pollIntervalMs,
-                },
-                () => {
-                    this.readState();
-                }
-            );
-        } catch (error) {
-            console.error(
-                "[HoodAI] Failed to watch Claude state file:",
-                error
-            );
-        }
-
-        /*
-         * Poll as a reliable fallback.
-         */
-        this.pollTimer = setInterval(() => {
-            this.readState();
-        }, this.pollIntervalMs);
+        this.timer = setInterval(() => {
+            void this.check();
+        }, this.intervalMs);
     }
 
     stop(): void {
-        fs.unwatchFile(STATE_FILE);
-
-        if (this.pollTimer) {
-            clearInterval(this.pollTimer);
-            this.pollTimer = undefined;
+        if (this.timer) {
+            clearInterval(this.timer);
+            this.timer = undefined;
         }
     }
 
     getStatus(): DetectorStatus {
-        return {
-            ...this.status,
-        };
+        return { ...this.status };
     }
 
     onStatusChange(
@@ -97,52 +59,112 @@ export class ClaudeDetector implements vscode.Disposable {
         this.listeners.length = 0;
     }
 
-    private readState(): void {
+    private async check(): Promise<void> {
         if (this.disposed) {
             return;
         }
 
-        try {
-            if (!fs.existsSync(STATE_FILE)) {
-                this.updateStatus({
-                    state: "idle",
-                    assistant: undefined,
-                });
+        console.log("[HoodAI Detector] check() invoked");
 
-                return;
+        // Check all terminals for Claude Code indicators (not just active terminal)
+        const terminals = vscode.window.terminals;
+        let terminalLooksLikeClaude = false;
+        let matchingTerminalName = "";
+
+        for (const terminal of terminals) {
+            const name = terminal?.name?.toLowerCase() ?? "";
+            if (name.includes("claude") || name.includes("anthropic")) {
+                terminalLooksLikeClaude = true;
+                matchingTerminalName = name;
+                break; // Found one, no need to check further
             }
-
-            const raw = fs.readFileSync(
-                STATE_FILE,
-                "utf8"
-            );
-
-            const data = JSON.parse(raw) as ClaudeStateFile;
-
-            if (data.state === "thinking") {
-                this.updateStatus({
-                    state: "thinking",
-                    assistant: data.assistant || "Claude Code",
-                });
-
-                return;
-            }
-
-            this.updateStatus({
-                state: "idle",
-                assistant: undefined,
-            });
-        } catch (error) {
-            console.error(
-                "[HoodAI] Failed to read Claude state:",
-                error
-            );
-
-            this.updateStatus({
-                state: "idle",
-                assistant: undefined,
-            });
         }
+
+        // Fallback to active terminal if no terminals found (shouldn't happen but safe)
+        if (terminals.length === 0) {
+            const activeTerminal = vscode.window.activeTerminal;
+            const activeName = activeTerminal?.name?.toLowerCase() ?? "";
+            terminalLooksLikeClaude =
+                activeName.includes("claude") ||
+                activeName.includes("anthropic");
+            matchingTerminalName = activeName;
+        }
+
+        const processLooksLikeClaude =
+            await this.detectClaudeProcess();
+
+        const claudeActive =
+            terminalLooksLikeClaude || processLooksLikeClaude;
+
+        // Diagnostic logging
+        console.log(`[HoodAI Detector] Terminals checked: ${terminals.length}`,
+                    `Matching terminal: "${matchingTerminalName}"`,
+                    `Terminal match: ${terminalLooksLikeClaude}`,
+                    `Process match: ${processLooksLikeClaude}`,
+                    `Claude active: ${claudeActive}`);
+
+        const nextStatus: DetectorStatus = claudeActive
+            ? {
+                  state: "thinking",
+                  assistant: "Claude Code",
+              }
+            : {
+                  state: "idle",
+                  assistant: undefined,
+              };
+
+        console.log(`[HoodAI Detector] Previous status: ${JSON.stringify(this.status)}`);
+        console.log(`[HoodAI Detector] Next status: ${JSON.stringify(nextStatus)}`);
+
+        this.updateStatus(nextStatus);
+    }
+
+    private detectClaudeProcess(): Promise<boolean> {
+        return new Promise((resolve) => {
+            const command =
+                process.platform === "win32"
+                    ? "tasklist"
+                    : "ps -A -o command=";
+
+            exec(
+                command,
+                {
+                    timeout: 2000,
+                    maxBuffer: 1024 * 1024,
+                },
+                (error, stdout) => {
+                    if (error || !stdout) {
+                        console.log("[HoodAI Detector] Process detection failed:",
+                            error || "no stdout");
+                        resolve(false);
+                        return;
+                    }
+
+                    const output = stdout.toLowerCase();
+
+                    const markers = [
+                        "claude-code",
+                        "@anthropic-ai/claude-code",
+                        "claude code",
+                        "claude",
+                        "anthropic",
+                    ];
+
+                    const isClaudeProcess = markers.some((marker) =>
+                        output.includes(marker)
+                    );
+
+                    console.log(`[HoodAI Detector] Process check: ${isClaudeProcess}`);
+                    if (isClaudeProcess) {
+                        // Log a snippet of the output for debugging (first 200 chars)
+                        const snippet = output.substring(0, Math.min(200, output.length));
+                        console.log(`[HoodAI Detector] Process output snippet: "${snippet}..."`);
+                    }
+
+                    resolve(isClaudeProcess);
+                }
+            );
+        });
     }
 
     private updateStatus(next: DetectorStatus): void {
@@ -151,9 +173,11 @@ export class ClaudeDetector implements vscode.Disposable {
             next.assistant !== this.status.assistant;
 
         if (!changed) {
+            console.log("[HoodAI Detector] Status unchanged, skipping update");
             return;
         }
 
+        console.log(`[HoodAI Detector] Status changing from ${JSON.stringify(this.status)} to ${JSON.stringify(next)}`);
         this.status = next;
 
         for (const listener of [...this.listeners]) {

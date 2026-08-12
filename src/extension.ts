@@ -54,11 +54,11 @@ function updateStatusBar(): void {
     const balance = currentBalanceText || "$0.00";
 
     statusBarItem.text = currentThinking
-        ? `$(sync~spin) ${balance} · ${activeDetectorName}`
+        ? `$(sync~spin) thinking...`
         : `$(credit-card) ${balance}`;
 
     statusBarItem.tooltip = currentThinking
-        ? `HoodAI is active while ${activeDetectorName} is thinking`
+        ? `HoodAI is active while Claude Code is thinking`
         : `HoodAI balance: ${balance}`;
 
     statusBarItem.command = "hoodai.showEarnings";
