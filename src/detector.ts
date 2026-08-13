@@ -1,7 +1,9 @@
 import * as vscode from "vscode";
 import { ClaudeDetector } from "./detectors/claude";
 
-export type DetectorState = "idle" | "thinking";
+export type DetectorState =
+    | "idle"
+    | "thinking";
 
 export interface DetectorStatus {
     state: DetectorState;
@@ -12,15 +14,20 @@ export interface AIDetector extends vscode.Disposable {
     start(): void;
     stop(): void;
     getStatus(): DetectorStatus;
+
     onStatusChange(
         listener: (status: DetectorStatus) => void
     ): vscode.Disposable;
 }
 
 export function createAIDetector(
-    intervalMs = 2500
+    intervalMs = 500,
+    output?: vscode.OutputChannel
 ): AIDetector {
-    const claude = new ClaudeDetector(intervalMs);
+    const claude = new ClaudeDetector(
+        intervalMs,
+        output
+    );
 
     return {
         start(): void {
