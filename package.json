@@ -1,23 +1,36 @@
 {
   "name": "hoodai",
   "displayName": "HoodAI",
-  "description": "Earn money 💰 while your AI is thinking 🤔...",
-  "version": "3.0.0",
-  "publisher": "sir8766666",
+  "description": "HoodAI detects AI coding activity in VS Code and displays sponsored content while AI is working.",
+  "version": "3.0.1",
+  "publisher": "hoodai",
   "license": "MIT",
+  "author": {
+    "name": "HoodAI"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/sir8766666-alt/HoodAI.git"
+    "url": "https://github.com/sir876666-alt/HoodAI.git"
   },
-  "homepage": "https://github.com/sir8766666-alt/HoodAI",
   "bugs": {
-    "url": "https://github.com/sir8766666-alt/HoodAI/issues"
+    "url": "https://github.com/sir876666-alt/HoodAI/issues"
   },
+  "homepage": "https://hoodai-zscw.onrender.com",
   "engines": {
-    "vscode": "^1.95.0"
+    "vscode": "^1.85.0"
   },
   "categories": [
     "Other"
+  ],
+  "keywords": [
+    "ai",
+    "claude",
+    "claude-code",
+    "codex",
+    "gemini",
+    "ai-coding",
+    "developer-tools",
+    "ads"
   ],
   "activationEvents": [
     "onStartupFinished",
@@ -25,18 +38,35 @@
     "onCommand:hoodai.showAd",
     "onCommand:hoodai.showEarnings",
     "onCommand:hoodai.openSettings",
-    "onCommand:hoodai.checkToken"
+    "onCommand:hoodai.checkToken",
+    "onCommand:hoodai.showOutput"
   ],
   "main": "./out/extension.js",
+  "files": [
+    "out/**",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile",
+    "package": "vsce package",
+    "package:vsix": "vsce package",
+    "clean": "rm -rf out *.vsix",
+    "check": "npm run compile",
+    "prepublishOnly": "npm run compile"
+  },
   "contributes": {
     "commands": [
       {
         "command": "hoodai.open",
-        "title": "HoodAI: Open Panel"
+        "title": "HoodAI: Open"
       },
       {
         "command": "hoodai.showAd",
-        "title": "HoodAI: Show Waiting Panel"
+        "title": "HoodAI: Show Ad"
       },
       {
         "command": "hoodai.showEarnings",
@@ -44,11 +74,15 @@
       },
       {
         "command": "hoodai.openSettings",
-        "title": "HoodAI: Open HoodAI Settings"
+        "title": "HoodAI: Open Settings"
       },
       {
         "command": "hoodai.checkToken",
         "title": "HoodAI: Check API Token"
+      },
+      {
+        "command": "hoodai.showOutput",
+        "title": "HoodAI: Show Output"
       }
     ],
     "configuration": {
@@ -57,27 +91,38 @@
         "hoodai.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable HoodAI popup while Claude Code is active."
+          "description": "Enable HoodAI AI activity detection and sponsored content."
         },
         "hoodai.apiToken": {
           "type": "string",
           "default": "",
-          "description": "Paste your HoodAI access token here."
+          "description": "Your HoodAI API token.",
+          "scope": "machine"
+        },
+        "hoodai.apiBase": {
+          "type": "string",
+          "default": "https://hoodai-zscw.onrender.com",
+          "description": "HoodAI backend URL."
+        },
+        "hoodai.detectorInterval": {
+          "type": "number",
+          "default": 500,
+          "minimum": 100,
+          "maximum": 10000,
+          "description": "How often HoodAI checks AI activity state, in milliseconds."
+        },
+        "hoodai.showAds": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show sponsored content while an AI assistant is working."
         }
       }
     }
   },
-  "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "vscode:prepublish": "npm run compile",
-    "package": "vsce package"
-  },
   "devDependencies": {
-    "@types/node": "^24.1.3",
-    "@types/vscode": "^1.95.0",
-    "@vscode/vsce": "^3.6.2",
-    "rimraf": "^6.0.1",
-    "typescript": "^5.8.3"
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.0.0",
+    "typescript": "^5.7.0"
   }
 }
