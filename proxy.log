@@ -1,69 +1,13 @@
-INFO:     Started server process [5264]
+INFO:     Started server process [3217]
 INFO:     Waiting for application startup.
 INFO:     Admin UI: http://127.0.0.1:8082/admin (local-only)
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8082 (Press CTRL+C to quit)
-INFO:     127.0.0.1:39678 - "GET /health HTTP/1.1" 200 OK
-(node:5805) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+INFO:     127.0.0.1:46118 - "GET /health HTTP/1.1" 200 OK
+(node:3607) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-INFO:     127.0.0.1:42178 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38228 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34326 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:43716 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:37740 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35850 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53388 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     157.50.106.45:0 - "GET / HTTP/1.1" 401 Unauthorized
-INFO:     157.50.106.45:0 - "GET /favicon.ico HTTP/1.1" 404 Not Found
-WARNING:  Invalid HTTP request received.
-INFO:     127.0.0.1:52366 - "HEAD / HTTP/1.1" 204 No Content
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-INFO:     127.0.0.1:52500 - "GET / HTTP/1.1" 401 Unauthorized
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-WARNING:  Invalid HTTP request received.
-INFO:     127.0.0.1:47246 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54796 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54796 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51430 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:42988 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33598 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33598 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33598 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33844 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33598 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33844 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33844 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33844 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33844 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33844 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33844 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33844 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33844 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33844 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33844 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33844 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47968 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46130 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46130 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46130 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45366 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39204 - "POST /v1/messages?beta=true HTTP/1.1" 200 OK
