@@ -42,12 +42,6 @@
     "onCommand:hoodai.showOutput"
   ],
   "main": "./out/extension.js",
-  "files": [
-    "out/**",
-    "README.md",
-    "LICENSE",
-    "package.json"
-  ],
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
