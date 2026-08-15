@@ -1,19 +1,20 @@
 {
   "name": "hoodai",
   "displayName": "HoodAI",
-  "description": "HoodAI detects AI coding activity in VS Code and displays sponsored content while AI is working.",
+  "description": "Earn money 💰 while your AI working for you 💖",
   "version": "3.0.1",
   "publisher": "hoodai",
   "license": "MIT",
   "author": {
     "name": "HoodAI"
   },
+  "icon": "media/hoodai-icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/sir876666-alt/HoodAI.git"
+    "url": "https://github.com/sir8766666-alt/HoodAI.git"
   },
   "bugs": {
-    "url": "https://github.com/sir876666-alt/HoodAI/issues"
+    "url": "https://github.com/sir8766666-alt/HoodAI/issues"
   },
   "homepage": "https://hoodai-zscw.onrender.com",
   "engines": {
@@ -49,18 +50,17 @@
     "package": "vsce package",
     "package:vsix": "vsce package",
     "clean": "rm -rf out *.vsix",
-    "check": "npm run compile",
-    "prepublishOnly": "npm run compile"
+    "check": "npm run compile"
   },
   "contributes": {
     "commands": [
       {
         "command": "hoodai.open",
-        "title": "HoodAI: Open"
+        "title": "HoodAI: Open Panel"
       },
       {
         "command": "hoodai.showAd",
-        "title": "HoodAI: Show Ad"
+        "title": "HoodAI: Show Sponsored Panel"
       },
       {
         "command": "hoodai.showEarnings",
@@ -68,7 +68,7 @@
       },
       {
         "command": "hoodai.openSettings",
-        "title": "HoodAI: Open Settings"
+        "title": "HoodAI: Open HoodAI Settings"
       },
       {
         "command": "hoodai.checkToken",
@@ -85,7 +85,7 @@
         "hoodai.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable HoodAI AI activity detection and sponsored content."
+          "description": "Enable HoodAI while your AI coding assistant is working."
         },
         "hoodai.apiToken": {
           "type": "string",
@@ -108,7 +108,7 @@
         "hoodai.showAds": {
           "type": "boolean",
           "default": true,
-          "description": "Show sponsored content while an AI assistant is working."
+          "description": "Show sponsored developer content while an AI assistant is working."
         }
       }
     }
